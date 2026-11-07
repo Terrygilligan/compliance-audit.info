@@ -1,0 +1,19 @@
+name = "compliance-info-site"
+main = "worker.js"
+compatibility_date = "2026-10-17"
+account_id = "81ad5ec01426ebdd01f561559d39dc41"
+workers_dev = false
+
+# Routes attach to the compliance-audit.info zone once it exists in the
+# account. They carry no traffic until the NS cutover AND the apex/www
+# records flip to proxied=true in terraform/cloudflare/dns-info.tf.
+routes = [
+  { pattern = "compliance-audit.info/*", zone_name = "compliance-audit.info" },
+  { pattern = "www.compliance-audit.info/*", zone_name = "compliance-audit.info" },
+]
+
+# Static OG binaries — /og/* paths are served through the worker, which
+# delegates to this binding (keeps PNG bytes out of the script bundle).
+[assets]
+directory = "./assets"
+binding = "ASSETS"

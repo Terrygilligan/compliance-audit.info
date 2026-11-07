@@ -1,0 +1,40 @@
+DNS inventory — compliance-audit.info
+Captured 2026-11-01 via authoritative NS (ns69.domaincontrol.com) +
+dns.google DoH JSON API. Basis for terraform/cloudflare/dns-info.tf.
+CAVEAT: remote queries can't see unqueried names — reconcile against the
+GoDaddy zone-file export before the NS cutover (operator step).
+
+Apex
+  A      199.36.158.100                          (Firebase Hosting)
+  MX 10  mx1.improvmx.com                        (ImprovMX inbound)
+  MX 20  mx2.improvmx.com
+  TXT    "v=spf1 include:spf.improvmx.com ~all"
+  TXT    "hosting-site=compiance-audit"          (Firebase site claim)
+  TXT    "brevo-code:35b0e966b198b84de7bc3c5a1075fadf"
+                                                 (per-account code — same as .eu)
+
+_dmarc
+  TXT    "v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net;"
+
+brevo1._domainkey
+  CNAME  b1.compliance-audit-info.dkim.brevo.com (NOTE: info's own domain —
+                                                 NOT the -eu variant)
+brevo2._domainkey
+  CNAME  b2.compliance-audit-info.dkim.brevo.com
+
+_domainconnect
+  CNAME  _domainconnect.gd.domaincontrol.com     (GoDaddy Domain Connect;
+                                                  inert after NS cutover,
+                                                  kept for parity)
+
+www
+  CNAME  compliance-audit.info                   (resolves to GFE but Firebase
+                                                  claims only apex — HTTPS to
+                                                  www is BROKEN today; Worker
+                                                  301→apex fixes it in Phase 3)
+
+Confirmed ABSENT (queried, NXDOMAIN/empty):
+  _acme-challenge, _acme-challenge.app,
+  send, rsend, resend._domainkey (Resend is .eu-only),
+  google._domainkey, selector1/2._domainkey,
+  mail, app, api
