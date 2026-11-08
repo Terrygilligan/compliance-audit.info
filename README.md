@@ -4,12 +4,16 @@ The `compliance-info-site` Cloudflare Worker — a single-file technical-referen
 site serving **https://compliance-audit.info**, the feeder/reference surface for
 the Sovereign Compliance & Billing Engine (`app.compliance-audit.eu`).
 
-What it serves (v3, live since 2026-11-07): `/rules/<slug>` canonical rule
-articles, `/t/<slug>` 301s, true 404s, edge-served `robots.txt`/`sitemap.xml`/
-`llms.txt`, a `/rules` index, ~55 programmatic WCAG stubs (`noindex` until
-hand-polished via `STUB_NOTES`), `TechArticle`/`BreadcrumbList`/`WebSite`/
-`Organization` JSON-LD, OG images via the `ASSETS` binding, and zero-JS
-telemetry pings to the engine's `{ip,ref}` heartbeat.
+What it serves (v3, live since 2026-11-07; SEO pass 2026-11-07): `/rules/<slug>`
+canonical rule articles — 12 hand-written authority hubs (context, self-check,
+pitfalls, sources, related rules) plus programmatic WCAG stubs (~55, `noindex`
+until hand-polished via `STUB_NOTES`; ~24 indexable today). Each article carries
+`TechArticle`/`BreadcrumbList` JSON-LD, per-slug OG cards, verified source
+citations (EUR-Lex/W3C/ETSI), and a topic-interpolated CTA to `/proof`+`/scan`
+on `.eu`. `/t/<slug>` 301s, true 404s, edge-served `robots.txt`/`sitemap.xml`/
+`llms.txt` (sitemap lists indexable URLs only), ETag/`Last-Modified` conditional
+requests, `/favicon.ico`, and zero-JS telemetry pings to the engine's `{ip,ref}`
+heartbeat.
 
 ## Layout
 
@@ -17,10 +21,28 @@ telemetry pings to the engine's `{ip,ref}` heartbeat.
 edge/info-site/            deployable Worker package
   worker.js                the entire site (one file)
   wrangler.toml            routes, ASSETS binding, compatibility date
-  assets/og/*.png          OG binaries served via env.ASSETS
+  assets/og/*.png          OG binaries served via env.ASSETS — per-slug cards
+                           for the 12 hubs + logo.png (Organization JSON-LD)
 src/a11y/wcagRegistry.js   VENDORED — canonical copy lives in
                            compliance-audit-engine/src/a11y/wcagRegistry.js
+src/i18n/                  ATOMIC locale layer (no project imports inside):
+  registry.js              locale flags — `active:false` → /de/, /fr/ 301 to EN
+  ui.en.js                 English source-of-truth strings (all site copy)
+  index.js                 loader + t() fallback + localizeTopic
+scripts/render-og/         offline OG card renderer (headless Chrome, no deps)
 docs/                      v3 spec + DNS inventory (reference)
+```
+
+i18n wiring is live but EN-only: hreflang/og:locale/inLanguage emit per page,
+hreflang alternates ride in `sitemap.xml` (`xhtml:link`), and `/de/`+`/fr/`
+bounce to EN equivalents until `ui.<code>.js` translation files land (flip
+`active` in `registry.js` at launch — translations are produced offline by a
+provider-agnostic script, terminology-reviewed, never runtime-API'd).
+
+Regenerate OG cards after changing hub titles/frameworks:
+
+```powershell
+"C:\Program Files\nodejs\node.exe" C:\compliance-audit.info\scripts\render-og\render-og.mjs
 ```
 
 The `src/a11y/` path shape is deliberate: `worker.js` imports

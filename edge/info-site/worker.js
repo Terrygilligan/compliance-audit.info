@@ -21,6 +21,7 @@
  */
 
 import { allCriteria } from '../../src/a11y/wcagRegistry.js';
+import { LOCALES, DEFAULT_LOCALE, localeData, t, localizeTopic, isActive } from '../../src/i18n/index.js';
 
 const EU_HEALTH = 'https://compliance-audit-prod-355879683660.europe-west1.run.app/health';
 const UK_HEALTH = 'https://compliance-audit-uk-355879683660.europe-west2.run.app/health';
@@ -28,6 +29,8 @@ const PORTAL = 'https://compliance-audit.eu';
 const APP = 'https://app.compliance-audit.eu';
 const PROOF = 'https://compliance-audit.eu/proof';
 const TRUST = 'https://compliance-audit.eu/trust';
+const SCAN = 'https://compliance-audit.eu/scan';
+const VERIFY = 'https://compliance-audit.eu/verify';
 const ORIGIN = 'https://compliance-audit.info';
 const TELEMETRY_URL = 'https://api.compliance-audit.eu/v1/telemetry/heartbeat';
 
@@ -39,6 +42,34 @@ const TOPICS_DATE = '2026-11-01';
 
 // Legacy /t/ slugs that merge into their bare wcag-<id> stub (owner-locked
 // slug merge — one page per criterion).
+// --- Locale routing ----------------------------------------------------------
+// EN serves at root (prefix:''); other locales under /<code>/. Inactive
+// locales 301 to their EN equivalent — a locale only goes live once its
+// translation files are committed and reviewed (see src/i18n/).
+function resolveLocale(pathname) {
+  for (const [code, cfg] of Object.entries(LOCALES)) {
+    if (!cfg.prefix) continue;
+    if (pathname === cfg.prefix || pathname.startsWith(`${cfg.prefix}/`)) {
+      return { locale: code, path: pathname.slice(cfg.prefix.length) || '/' };
+    }
+  }
+  return { locale: DEFAULT_LOCALE, path: pathname };
+}
+
+function locPath(locale, path) {
+  return `${LOCALES[locale]?.prefix || ''}${path}`;
+}
+
+// hreflang alternates for a resource: every active locale's equivalent URL +
+// x-default → EN. Returned as [hreflang, absolute-url] pairs for <link> tags.
+function alternatesFor(path) {
+  const pairs = [['x-default', `${ORIGIN}${locPath(DEFAULT_LOCALE, path)}`]];
+  for (const [code] of Object.entries(LOCALES)) {
+    if (isActive(code)) pairs.push([code, `${ORIGIN}${locPath(code, path)}`]);
+  }
+  return pairs;
+}
+
 const T_SLUG_MERGES = {
   'wcag-2-1-1-keyboard': 'wcag-2-1-1',
   'wcag-1-4-3-contrast': 'wcag-1-4-3',
@@ -54,7 +85,7 @@ const SECURITY_HEADERS = {
   // Zero third-party anything — same promise the product makes.
   'content-security-policy':
     "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-  'cache-control': 'public, max-age=60',
+  'cache-control': 'public, max-age=300, stale-while-revalidate=86400',
 };
 
 // --- Lucide icons (ISC) — inlined paths, 24x24 stroke=2 ----------------------
@@ -187,86 +218,299 @@ footer .wrap{padding:1.25rem 1.5rem;font-size:11px;color:#64748b;display:flex;fl
 const TOPICS = [
   {
     slug: 'gdpr-art-5-minimisation', framework: 'GDPR', chip: 'chip-g',
+    docTitle: 'GDPR Art. 5 — Data minimisation',
     title: 'Art. 5 — Data minimisation',
+    context: 'Article 5(1)(c) sits at the top of GDPR\u2019s principles list because every other obligation flows from it — you cannot breach-protect, retention-manage, or fulfil a DSAR on data you never collected. Regulators read minimisation as an engineering requirement, not a privacy-policy sentence: enforcement consistently punishes collection that outlives its stated purpose — excessive form fields, retained location pings, "just in case" analytics payloads.',
     rule: 'Personal data must be "adequate, relevant and limited to what is necessary" for the stated purpose. Collecting more than you need is non-compliant by itself, whatever your consent banner says.',
     build: 'Collect less. Strip identifiers at the boundary, before storage or logging — a field you never store can never leak, be breached, or need a DSAR.',
+    selfCheck: [
+      'Can you name the declared purpose for every persisted field — and would deleting it break that purpose?',
+      'Do ingestion paths drop unknown keys before storage, or does your schema accept arbitrary payloads?',
+      'Are log and analytics payloads filtered at the boundary, not just trusted internally?',
+      'Is retention defined per field or data class somewhere other than someone\u2019s memory?',
+    ],
+    pitfalls: [
+      'Minimising at the UI while the API still accepts the same fields "for debugging" — the server boundary is what counts.',
+      'Treating analytics as exempt: event payloads are personal data too, and "we might need it later" is not a purpose.',
+      'Collecting full objects then redacting in the warehouse — the PII already lived in your logs.',
+    ],
+    citations: [
+      ['GDPR consolidated text — Art. 5 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
+      ['GDPR.eu article mirror — Art. 5', 'https://gdpr-info.eu/art-5-gdpr/'],
+    ],
+    related: ['gdpr-art-17-erasure', 'gdpr-art-32-security', 'eprivacy-cookies', 'data-residency'],
     engine: 'POST /v1/sanitize — boundary redaction of SSN, email, phone, card and key fields before data reaches storage.',
   },
   {
     slug: 'gdpr-art-17-erasure', framework: 'GDPR', chip: 'chip-g',
+    docTitle: 'GDPR Art. 17 — Right to erasure',
     title: 'Art. 17 — Right to erasure',
+    context: 'Article 17 is where privacy programs meet their write path. "Without undue delay" means days in practice, and "taking into account available technology" means your architecture is the excuse — or the defense. Controllers must also notify downstream recipients, so deletion is not a row problem; it is a propagation problem across replicas, caches, exports, and backups.',
     rule: 'On a valid request you must delete personal data "without undue delay" — every copy, in every store you control. A tombstone in the auth table while rows persist elsewhere is not erasure.',
     build: 'Deletion has to be a cascade with a defined blast radius: user-owned artifacts destroyed, shared tenant data left intact, and the operation idempotent so retries are safe.',
+    selfCheck: [
+      'Does a single request cascade to every store, replica, cache, and search index holding the subject\u2019s data?',
+      'Are backups covered — via rotation expiry or crypto-shredding of per-user keys?',
+      'Can retries of the same request run safely (idempotent) without resurrecting data?',
+      'Do you emit a completion artifact — a record that erasure happened, without keeping the erased data?',
+    ],
+    pitfalls: [
+      'Soft-delete flags: a tombstoned row still containing the data is not erasure — regulators treat it as a lie, not a shortcut.',
+      'Orphaned copies: deleting the primary while read-replicas, BI exports, and search indexes keep the records.',
+      'Reversible "anonymisation" — a salted hash of an email is still personal data while you hold the salt.',
+    ],
+    citations: [
+      ['GDPR consolidated text — Art. 17 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
+      ['GDPR.eu article mirror — Art. 17', 'https://gdpr-info.eu/art-17-gdpr/'],
+    ],
+    related: ['gdpr-art-5-minimisation', 'gdpr-art-33-breach', 'gdpr-art-32-security', 'data-residency'],
     engine: 'Destructive anonymization on UserDeleted — identifying fields overwritten, never reversibly hashed, across both sovereign partitions.',
   },
   {
     slug: 'gdpr-art-32-security', framework: 'GDPR', chip: 'chip-g',
+    docTitle: 'GDPR Art. 32 — Security of processing',
     title: 'Art. 32 — Security of processing',
+    context: 'Article 32 is the "show me" article: it does not mandate specific technology, it mandates demonstrability. The listed measures — pseudonymisation, confidentiality and integrity of systems, restoration ability, regular testing — are exactly what an assessor asks evidence for, and the "regularly tested" clause is what makes a one-off penetration report insufficient.',
     rule: 'You must implement "appropriate technical and organisational measures" — encryption, integrity, resilience, and the ability to demonstrate them on demand.',
     build: 'Security claims need evidence. Tamper-evident logging, scoped credentials, and verifiable integrity proofs are the artifacts an assessor actually asks for.',
+    selfCheck: [
+      'Could you produce evidence of security controls from the last 90 days — not just the policy that mandates them?',
+      'Are credentials scoped and short-lived enough that a leak has a bounded blast radius?',
+      'Is integrity verifiable — can you detect tampering inside your own audit trail?',
+      'Do you test restores, or only backups?',
+    ],
+    pitfalls: [
+      'Compliance-by-inventory: a spreadsheet of controls is not a technical measure — assessors want executed evidence.',
+      'Encrypting storage while PII leaks through logs, error reports, and analytics side-channels.',
+      'An "append-only" audit trail you can still UPDATE is decoration, not a control.',
+    ],
+    citations: [
+      ['GDPR consolidated text — Art. 32 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
+      ['GDPR.eu article mirror — Art. 32', 'https://gdpr-info.eu/art-32-gdpr/'],
+    ],
+    related: ['gdpr-art-33-breach', 'headers-csp', 'gdpr-art-17-erasure', 'dora-resilience'],
     engine: 'Hash-chained append-only audit vault with signed exports — integrity you verify cryptographically, not attest.',
   },
   {
     slug: 'gdpr-art-33-breach', framework: 'GDPR', chip: 'chip-g',
+    docTitle: 'GDPR Art. 33 — 72-hour breach notification',
     title: 'Art. 33 — 72-hour breach notification',
+    context: 'The 72-hour clock starts at "awareness" — read in guidance as the moment you had reasonable certainty a breach occurred, not when forensics conclude. Most organisations that miss the deadline did not lack tooling; they lacked an incident record that existed before the incident, so day one went to reconstructing events instead of reporting them.',
     rule: 'A personal-data breach must be reported to the supervisory authority within 72 hours of becoming aware — "where feasible". The clock is unforgiving if you discover late.',
     build: 'You need an incident record that exists before the incident: severity, detection time, containment, and a computed notification deadline — not a wiki page written during the panic.',
+    selfCheck: [
+      'Does detection timestamp the moment of awareness — not the moment forensics finished?',
+      'Is the notification deadline computed automatically at incident creation?',
+      'Can you answer "what data, how many subjects, which systems" in hours, not days?',
+      'Is there a documented severity line between reportable and record-only incidents?',
+    ],
+    pitfalls: [
+      'Treating "forensics complete" as the deadline start — awareness is earlier, and the clock is unforgiving.',
+      'No incident ledger: reconstructing the timeline from chat threads under regulator scrutiny.',
+      'Reporting every anomaly "to be safe" — over-reporting trains regulators to see noise, and still leaves you with records to maintain.',
+    ],
+    citations: [
+      ['GDPR consolidated text — Art. 33 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
+      ['GDPR.eu article mirror — Art. 33', 'https://gdpr-info.eu/art-33-gdpr/'],
+    ],
+    related: ['gdpr-art-32-security', 'gdpr-art-17-erasure', 'dora-resilience', 'data-residency'],
     engine: 'Incident ledger with Art. 33 deadlines computed at creation — the record exists when the regulator asks for it.',
   },
   {
     slug: 'eprivacy-cookies', framework: 'ePrivacy', chip: 'chip-g',
+    docTitle: 'ePrivacy — cookie and tracking consent rules',
     title: 'ePrivacy — the cookie rule',
+    context: 'The ePrivacy Directive — the "cookie law" — predates GDPR and is stricter in one way: consent is required for storing or accessing anything on the user\u2019s device, whether or not it is personal data. The "strictly necessary" exemption is narrow: session auth, CSRF tokens, load-balancer stickiness, shopping carts. Analytics and marketing pixels never qualify, and regulators — the CNIL especially — have fined major properties for scripts that fired before consent.',
     rule: 'Storing or accessing information on a user\u2019s device requires prior consent — except what is "strictly necessary" for the service the user asked for. Analytics and marketing pixels are never strictly necessary.',
     build: 'Either gate every non-essential script behind an opt-in banner, or ship nothing that needs one. Session auth and CSRF tokens are exempt; GA4 is not.',
+    selfCheck: [
+      'Does any non-essential storage or read happen before an affirmative opt-in? Third-party tags count.',
+      'Is "reject" as easy as "accept" — same layer, same number of clicks?',
+      'Have you audited localStorage/sessionStorage and fingerprinting, not just document.cookie?',
+      'Is the consent-state record itself classified as strictly necessary?',
+    ],
+    pitfalls: [
+      'Pre-consent pixels: a tag-manager analytics trigger firing on page load has already breached.',
+      'Cookie walls misread as consent — nudging UX is dark-pattern territory under both ePrivacy and GDPR.',
+      'Fingerprinting as a workaround: reading device identifiers without cookies is still "accessing information on the device".',
+    ],
+    citations: [
+      ['ePrivacy Directive 2002/58/EC — consolidated (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32002L0058'],
+    ],
+    related: ['gdpr-art-5-minimisation', 'data-residency', 'gdpr-art-32-security'],
     engine: 'Zero third-party tracking by construction — functional sessions plus a first-party heartbeat only.',
   },
   {
     slug: 'wcag-2-1-1', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 2.1.1 — Keyboard operability',
     title: 'WCAG 2.1.1 — Keyboard operability',
+    context: 'Level A keyboard operability separates "accessible in theory" from "accessible in fact". When it fails, it fails totally — a keyboard user cannot work around a dead menu the way they might squint past weak contrast. It is also where automated checks and real browsers diverge: a static check can see a click handler; only a real traversal sees a trap.',
     rule: 'All functionality must be operable through a keyboard interface, with no keyboard traps. Level A — failing it blocks users wholesale, not just inconveniently.',
     build: 'Every interactive element needs a reachable focus order and working focus styles. A widget that only works on hover, or that swallows Tab forever, fails this criterion.',
+    selfCheck: [
+      'Can you complete every task using only Tab, Shift+Tab, Enter, Escape, and arrow keys?',
+      'Do modals trap focus inside — and return it to the trigger on close?',
+      'Do hover-only controls have focus and keyboard equivalents?',
+      'Can you reach and activate the page\u2019s least-used widget — footer toggles, overflow menus, chart controls?',
+    ],
+    pitfalls: [
+      'The modal that leaks focus: Tab escapes to page content hidden behind the overlay.',
+      'Custom widgets built on divs with onClick — no role, no key handler, invisible to keyboards and AT alike.',
+      'Traps inside embedded content — a third-party widget that swallows keys is your failure, not theirs.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 2.1.1 Keyboard', 'https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html'],
+      ['EN 301 549 — ETSI standards index', 'https://www.etsi.org/deliver/etsi_en/301500_301599/301549/'],
+    ],
+    related: ['wcag-2-4-7', 'wcag-2-4-3', 'wcag-4-1-2', 'wcag-2-1-2'],
     engine: 'Tier-2 runner keyboard-reach probe — real-browser traversal, with presentational-utility exemptions for genuinely inert embeds.',
   },
   {
     slug: 'wcag-1-4-3', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 1.4.3 — Contrast minimum',
     title: 'WCAG 1.4.3 — Contrast minimum',
+    context: 'Contrast minimum is the most commonly failed machine-detectable criterion on the web — WebAIM\u2019s Million report finds low-contrast text on the majority of homepages year after year. It is Level AA, the EN 301 549 conformance target, and it is uniquely fixable at the token layer: one low-contrast slate in a design system\u2019s palette fails every component that inherits it.',
     rule: 'Text needs 4.5:1 contrast against its background (3:1 for large text). Level AA — the most common machine-detectable failure on the web.',
     build: 'Fix it in the design tokens, not page by page — one low-contrast slate on a brand palette fails every page that uses it.',
+    selfCheck: [
+      'Do all text/background pairs clear 4.5:1 — 3:1 for large text (≥18pt or ≥14pt bold)?',
+      'Does placeholder text pass? Placeholders count as text.',
+      'Do hover, focus, and disabled states hold — states change computed contrast?',
+      'Are ratios verified on rendered output, not just the design file?',
+    ],
+    pitfalls: [
+      'The default gray: a #999-on-white "subtle" slate is the most common failure pattern in design systems.',
+      'Text over imagery: a scrim that passes in the mockup fails at the image\u2019s light edges.',
+      'axe alone is not conclusive — contrast over gradients and images needs visual judgement, not just DOM pairs.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 1.4.3 Contrast (Minimum)', 'https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html'],
+      ['WebAIM Million — annual accessibility analysis', 'https://webaim.org/projects/million/'],
+    ],
+    related: ['wcag-1-4-11', 'wcag-1-4-12', 'wcag-1-4-1', 'wcag-2-1-1'],
     engine: 'axe contrast checks inside the Tier-2 audit run, rolled up into the criterion-level conformance report.',
   },
   {
     slug: 'wcag-4-1-2', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 4.1.2 — Name, role, value',
     title: 'WCAG 4.1.2 — Name, role, value',
+    context: '4.1.2 keeps custom components honest: assistive technology cannot operate what it cannot name. Every control needs an accessible name, a programmatic role, and states that update live. It is Level A, and it is where bespoke date-pickers, toggles, and mega-menus break — the DOM looks right while the accessibility tree is empty.',
     rule: 'UI components must expose their name, role, state and value to assistive technology. Level A — the criterion custom widgets most often break.',
     build: 'Prefer semantic HTML; when you must go custom, ARIA roles and states are part of the component contract, not an afterthought.',
+    selfCheck: [
+      'Does every interactive element expose a name, role, and current state to the accessibility tree?',
+      'Do ARIA states — aria-expanded, aria-checked, aria-selected — actually change on interaction?',
+      'Are icon-only buttons labelled — aria-label or visually-hidden text?',
+      'Does validation status reach AT — aria-invalid, live-region announcements?',
+    ],
+    pitfalls: [
+      'ARIA present but never wired: aria-expanded="false" on a menu that is visibly open.',
+      'Div-buttons: if it needs a click handler it is a component — without role and key handling it fails.',
+      'Icon glyphs as names: a font-icon character is not an accessible name.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 4.1.2 Name, Role, Value', 'https://www.w3.org/WAI/WCAG22/Understanding/name-role-value.html'],
+      ['WAI-ARIA Authoring Practices (APG)', 'https://www.w3.org/WAI/ARIA/apg/'],
+    ],
+    related: ['wcag-1-3-1', 'wcag-2-1-1', 'wcag-3-3-2', 'wcag-2-4-7'],
     engine: 'axe ruleset detection in the audit run — missing accessible names and misused roles surface as findings.',
   },
   {
     slug: 'headers-csp', framework: 'Security headers', chip: 'chip-s',
+    docTitle: 'Content-Security-Policy — security headers reference',
     title: 'Content-Security-Policy',
+    context: 'CSP occupies a special place in assessments: not a regulation, but the first evidence artifact a perimeter check produces. It declares which origins may load scripts, styles, frames, and connections — turning "we do not allow injected code" from a claim into an enforced policy. With XSS still a dominant vulnerability class, a missing or permissive CSP reads to an assessor as "XSS defense here is aspirational".',
     rule: 'CSP is not a regulation, but it is the header regulators and assessors look for as evidence of XSS defense-in-depth — and the first thing a perimeter scan checks.',
     build: 'Declare allowed script/style/connect sources explicitly. A permissive or missing CSP means injected markup can phone home freely.',
+    selfCheck: [
+      'Does script-src actually restrict origins — or is the policy "default-src *" theatre?',
+      'Are unsafe-inline / unsafe-eval still present where a nonce or hash could replace them?',
+      'Does it set frame-ancestors (clickjacking) and base-uri (base-tag injection)?',
+      'Is there a reporting endpoint — and does anyone read the reports?',
+    ],
+    pitfalls: [
+      'Report-only forever: a Content-Security-Policy-Report-Only header enforces nothing.',
+      'Allowlisting a CDN that hosts user content — effectively allowlisting the internet.',
+      'CSP in a meta tag cannot restrict frame-ancestors — it must be a response header.',
+    ],
+    citations: [
+      ['W3C — Content Security Policy Level 3', 'https://www.w3.org/TR/CSP3/'],
+      ['OWASP — Content Security Policy cheat sheet', 'https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html'],
+    ],
+    related: ['gdpr-art-32-security', 'dora-resilience', 'eprivacy-cookies'],
     engine: 'Perimeter header checks — shield headers and CSP posture are verified from the edge, no code access needed.',
   },
   {
     slug: 'eu-ai-act-inventory', framework: 'EU AI Act', chip: 'chip-s',
+    docTitle: 'EU AI Act — model inventory and risk tiers',
     title: 'AI Act — model inventory & risk tiers',
+    context: 'The AI Act (Regulation 2024/1689) is risk-tiered: prohibited practices, high-risk systems with heavy obligations, limited-risk transparency duties, minimal-risk free use — plus a separate regime for general-purpose models. Every obligation assumes you can first answer one question: which AI systems do you run, and in what role? A provider and a deployer of the same model carry different duties — most organisations are both.',
     rule: 'Providers and deployers must know which AI systems they operate, classify them by risk tier, and maintain the documentation trail proportionate to that tier.',
     build: 'Start with a registry: model, provider, risk tier, data provenance, oversight control. You cannot document what you have not inventoried.',
+    selfCheck: [
+      'Is there a registry of every AI system in production — model, provider, version, use-case?',
+      'Is each entry classified by role (provider vs deployer) and risk tier?',
+      'Are prohibited practices affirmatively ruled out and documented?',
+      'Does the registry emit audit events on registration and tier changes?',
+    ],
+    pitfalls: [
+      '"We don\u2019t do AI": embedded vendor features — CV screening, support chatbots, code assistants — make you a deployer anyway.',
+      'Tier-by-instinct: risk classification is defined in the Annexes, not by gut feel.',
+      'A registry kept in a slide deck goes stale — the inventory is an operational record, not a presentation.',
+    ],
+    citations: [
+      ['AI Act — Regulation (EU) 2024/1689 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689'],
+    ],
+    related: ['gdpr-art-5-minimisation', 'gdpr-art-32-security', 'dora-resilience', 'data-residency'],
     engine: 'Model registry endpoints — risk-tiered inventory with audit events on registration and tier changes.',
   },
   {
     slug: 'dora-resilience', framework: 'DORA', chip: 'chip-s',
+    docTitle: 'DORA — ICT resilience requirements',
     title: 'DORA — ICT resilience',
+    context: 'DORA (Regulation 2022/2554) applies to financial entities and their ICT third-party providers — which pulls SaaS vendors into scope through their customers\u2019 registers of information. Its core demand is provable resilience: classified incident handling, continuity testing, and a ledger of what broke and when. If you sell into EU finance, your customers\u2019 DORA register now includes you.',
     rule: 'Financial entities and their ICT providers must demonstrate operational resilience: incident handling, continuity, and the records to prove both.',
     build: 'Resilience is an architecture: circuit-breakers on external dependencies, dead-letter queues on async flows, and a ledger of what broke and when.',
+    selfCheck: [
+      'Do external dependencies fail closed — breakers, timeouts, dead-letters — or fail by hanging?',
+      'Is there an incident ledger with severity classification, not a postmortem wiki?',
+      'Can you evidence continuity testing — restores and failover — on a schedule?',
+      'Are your ICT dependencies registered — would you appear correctly in a customer\u2019s register of information?',
+    ],
+    pitfalls: [
+      'Resilience-by-uptime-number: "99.9%" is not evidence — incident records and tested recovery are.',
+      'Retry storms masquerading as resilience: retries without a breaker turn a partial outage into a full one.',
+      'Assuming DORA is the bank\u2019s problem — ICT providers get pulled in via contracts and registers.',
+    ],
+    citations: [
+      ['DORA — Regulation (EU) 2022/2554 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2554'],
+    ],
+    related: ['gdpr-art-33-breach', 'gdpr-art-32-security', 'data-residency', 'eu-ai-act-inventory'],
     engine: 'Redis-backed circuit breaker states, incident ledger, and dead-letter topics — resilience as records, not promises.',
   },
   {
     slug: 'data-residency', framework: 'Data residency', chip: 'chip-g',
+    docTitle: 'EU/UK data residency — sovereign partitions',
     title: 'Sovereign partitions',
+    context: 'GDPR\u2019s free-flow principle applies inside the EEA; Chapter V mechanisms — adequacy decisions, SCCs, binding corporate rules — govern exits. Since Schrems II, "where does it live" is an architecture question, not a marketing one. Enforcement repeatedly shows "data stays in the EU" claims failing at the support-tool, analytics, and disaster-recovery layers even when the primary database is genuinely European.',
     rule: 'GDPR lets data flow freely inside the EU; moving it elsewhere needs a Chapter V mechanism. For many buyers, "stays in Europe" is a hard procurement gate, not a preference.',
     build: 'Bind data to regions at the database layer, not the app layer — a misrouted write is a residency breach regardless of what the marketing page says.',
+    selfCheck: [
+      'Can you enumerate every system touching personal data — support tools, telemetry, error trackers, backups included?',
+      'Is residency enforced at the routing and auth layer, or by convention in app code?',
+      'Do admin and support access paths get the same treatment as data flows?',
+      'Can a write ever land in the wrong region — is there a per-tenant home-partition guarantee?',
+    ],
+    pitfalls: [
+      'Primary-in-EU, exhaust-everywhere: US-region error tracking and support tooling quietly defeats the residency story.',
+      'Failover to "the other region" — a DR plan replicating outside the EEA is a residency breach waiting for a bad day.',
+      'Region claims on the marketing page the database layer cannot verify.',
+    ],
+    citations: [
+      ['GDPR consolidated text — Chapter V transfers (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
+      ['GDPR.eu mirror — Chapter 5', 'https://gdpr-info.eu/chapter-5/'],
+    ],
+    related: ['gdpr-art-5-minimisation', 'gdpr-art-17-erasure', 'dora-resilience', 'gdpr-art-32-security'],
     engine: 'Dual-node architecture: every tenant\u2019s data lives on exactly one partition — europe-west1 (Belgium) or europe-west2 (London) — routed and refused cross-border by the auth layer.',
   },
 ];
@@ -329,6 +573,76 @@ const STUB_NOTES = {
       'Correct: <label for="email">Email</label><input id="email">. Incorrect: a bare placeholder attribute — it disappears on focus and is not an accessible name.',
     pitfall: 'Placeholder text is not a label — it fails as soon as the user starts typing.',
   },
+  '1.2.2': {
+    example:
+      'Correct: synchronised captions covering all speech and meaningful sound on prerecorded video — a <track kind="captions"> element or reviewed burned-in text. Incorrect: auto-generated captions published unreviewed, or claiming the video is "just decoration" when it carries information.',
+    pitfall: 'Auto-captions are a draft, not a deliverable — unreviewed machine captions fail because their errors change meaning.',
+  },
+  '1.4.1': {
+    example:
+      'Correct: an invalid field shows a red border AND an icon with text ("Email is required"). Incorrect: colour as the only signal — a red-bordered field with no message, or a chart whose series differ only by hue.',
+    pitfall: '"It is also in the legend" does not save a chart where two series differ only by colour — add pattern, shape, or direct labels.',
+  },
+  '1.4.4': {
+    example:
+      'Correct: at 200% zoom every control and block of text stays readable and usable with no loss of content or functionality. Incorrect: fixed-height containers that clip enlarged text, or zoom pinned via the viewport meta tag.',
+    pitfall: 'maximum-scale=1 or user-scalable=no in the viewport tag is an instant failure on mobile — never pin user zoom.',
+  },
+  '1.4.10': {
+    example:
+      'Correct: at a 320 CSS-pixel width the page reflows vertically with no horizontal scrolling. Incorrect: a two-column layout that forces sideways scrolling, or data tables with no overflow handling.',
+    pitfall: 'Test at a real 320px viewport, not just device emulation — sticky headers and wide tables are the usual offenders.',
+  },
+  '1.4.11': {
+    example:
+      'Correct: input borders, focus indicators, meaningful icons, and control boundaries hit 3:1 against adjacent colours. Incorrect: a 1.5:1 input border "because it is subtle", or a focus ring that disappears on the brand background.',
+    pitfall: 'Focus indicators are the silent failure — a barely-visible 1.8:1 ring technically "exists" but fails this criterion.',
+  },
+  '1.4.12': {
+    example:
+      'Correct: content survives user stylesheet overrides — line-height 1.5\u00d7, letter-spacing 0.12em, word-spacing 0.16em, paragraph spacing 2\u00d7 — with nothing clipped or overlapped. Incorrect: fixed-height text blocks that truncate when spacing grows.',
+    pitfall: 'overflow:hidden plus a fixed height is the classic fail — text spacing must be able to expand.',
+  },
+  '2.1.2': {
+    example:
+      'Correct: Tab into any component and Shift+Tab, Escape, or arrows always get you out — modals release focus on close. Incorrect: focus stuck inside an iframe widget or a rich-text editor with no documented exit.',
+    pitfall: 'Embedded third-party widgets are your trap too — if a user cannot leave a captcha or editor by keyboard alone, the page fails.',
+  },
+  '2.4.1': {
+    example:
+      'Correct: a "Skip to content" link as the first focusable element, plus landmark regions (<main>, <nav>) for AT users. Incorrect: forty navigation links to Tab through on every single page.',
+    pitfall: 'Landmarks without a skip link help screen readers but not sighted keyboard users — use both.',
+  },
+  '2.4.2': {
+    example:
+      'Correct: a unique, descriptive <title> per page ("Contrast minimum — WCAG 1.4.3 — Compliance Audit"). Incorrect: the same site name on every route, or a title describing the app rather than the view.',
+    pitfall: 'SPAs that never update document.title on route change leave users stranded — the title is the page\u2019s identity in history and tab lists.',
+  },
+  '2.4.6': {
+    example:
+      'Correct: headings describe the section they open and labels describe their control ("Search", "Filter by status"). Incorrect: a "Details" heading over a pricing table, or duplicate "Edit" labels on unrelated actions.',
+    pitfall: 'Descriptive is not the same as unique — the criterion wants topic-describing headings, not merely non-empty ones.',
+  },
+  '2.5.3': {
+    example:
+      'Correct: the visible "Download" text is contained in the accessible name — aria-label="Download Q3 report" includes the visible words. Incorrect: a visible "Download" button with aria-label="Get file" — a speech user saying "click Download" hits nothing.',
+    pitfall: 'The accessible name should start with the visible label — voice-control users only ever see the visible text.',
+  },
+  '2.5.8': {
+    example:
+      'Correct: pointer targets are at least 24\u00d724 CSS pixels, or spaced so a 24px circle fits between adjacent centres. Incorrect: 12px icon buttons packed into a toolbar, or dense pagination dots.',
+    pitfall: 'Inline text links inside paragraphs are exempt — icon buttons and pagination dots are not, and spacing counts toward the size.',
+  },
+  '3.3.1': {
+    example:
+      'Correct: the error is identified in text and tied to its field — "Email: enter an address like name@example.com". Incorrect: only a red border, or a summary banner that never says which fields failed.',
+    pitfall: 'Colour alone never identifies an error — the message must name the field and the problem.',
+  },
+  '4.1.3': {
+    example:
+      'Correct: status updates are announced via role="status" or an aria-live region — "3 results", "Saved" — without moving focus. Incorrect: toast notifications that appear visually but never reach the accessibility tree.',
+    pitfall: 'The live region must exist before the message renders — injecting region and message in the same tick announces nothing.',
+  },
 };
 
 // Indexable WCAG slugs = the 3 manual TOPICS + stubs carrying STUB_NOTES.
@@ -337,29 +651,75 @@ const POLISHED_WCAG = new Set(
     .map((c) => `wcag-${c.criterionId.replace(/\./g, '-')}`)
 );
 
-function stubArticle(c) {
+// W3C Understanding doc slugs are the criterion name lowercased/kebab-cased
+// with parenthetical qualifiers flattened in — e.g. "Link Purpose (In
+// Context)" → link-purpose-in-context. Holds across the 2.2 A/AA set.
+function understandingSlug(name) {
+  return name
+    .toLowerCase()
+    .replace(/[()]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Same-principle neighbours first, then registry-adjacent criteria — a stub's
+// most useful onward hops are the criteria auditors hit together.
+function relatedCriteria(c, L, n = 4) {
+  const slugOf = (x) => `wcag-${x.criterionId.replace(/\./g, '-')}`;
+  const isIndexable = (x) => POLISHED_WCAG.has(slugOf(x)) || TOPICS.some((t) => t.slug === slugOf(x));
+  const idx = WCAG_CRITERIA.findIndex((x) => x.criterionId === c.criterionId);
+  const candidates = [
+    ...WCAG_CRITERIA.filter((x) => x.principle === c.principle && x.criterionId !== c.criterionId && isIndexable(x)),
+    WCAG_CRITERIA[idx - 1],
+    WCAG_CRITERIA[idx + 1],
+    WCAG_CRITERIA[idx - 2],
+    WCAG_CRITERIA[idx + 2],
+    ...WCAG_CRITERIA.filter((x) => x.principle === c.principle && x.criterionId !== c.criterionId),
+  ].filter(Boolean);
+  const seen = new Set();
+  return candidates
+    .filter((x) => x.criterionId !== c.criterionId && !seen.has(x.criterionId) && seen.add(x.criterionId))
+    .slice(0, n)
+    .map((x) => ({ slug: slugOf(x), title: `WCAG ${x.criterionId} — ${L.names[x.criterionId] || x.name}` }));
+}
+
+function stubArticle(c, L) {
   const slug = `wcag-${c.criterionId.replace(/\./g, '-')}`;
-  const notes = STUB_NOTES[c.criterionId];
-  const level = `Level ${c.level}`;
+  // Indexable-in-locale requires notes written FOR that locale — never fall
+  // back to English notes for polish status (honesty rule).
+  const notes = (L.locale === DEFAULT_LOCALE ? STUB_NOTES : L.notes)[c.criterionId];
+  const name = L.names[c.criterionId] || c.name;
+  const level = t(L.strings, 'stub.level', { level: c.level });
   const en = c.en301549Clause
-    ? `EN 301 549 clause ${c.en301549Clause} maps this criterion for procurement conformance.`
-    : 'This criterion is WCAG 2.2-only — it has no EN 301 549 v3.2.1 clause yet.';
+    ? t(L.strings, 'stub.enMapped', { clause: c.en301549Clause })
+    : t(L.strings, 'stub.enUnmapped');
   const auto = c.fullyAutomated
-    ? 'fullyAutomated — a clean automated run is conclusive evidence for this criterion.'
+    ? t(L.strings, 'stub.auto.full')
     : c.tier && c.tier.length
-      ? `partially automated (audit tier ${c.tier.join('/')}) — automated findings flag candidates; a clean VPAT claim still needs the documented manual check.`
-      : 'manual-only in the current audit tiers — no automated run can certify it.';
+      ? t(L.strings, 'stub.auto.partial', { tiers: c.tier.join('/') })
+      : t(L.strings, 'stub.auto.manual');
+  const sources = [
+    [t(L.strings, 'stub.sourceW3c', { id: c.criterionId, name }), `https://www.w3.org/WAI/WCAG22/Understanding/${understandingSlug(c.name)}.html`],
+  ];
+  if (c.en301549Clause) {
+    sources.push([t(L.strings, 'stub.sourceEn', { clause: c.en301549Clause }), 'https://www.etsi.org/deliver/etsi_en/301500_301599/301549/']);
+  }
   return {
     slug,
     framework: 'WCAG 2.2',
     chip: 'chip-s',
-    title: `WCAG ${c.criterionId} — ${c.name}`,
-    rule:
-      `Success Criterion ${c.criterionId} "${c.name}" is a ${level} requirement under the "${c.principle}" principle of WCAG 2.2. ${en}`,
+    docTitle: `WCAG ${c.criterionId} ${name} (${level})`,
+    title: `WCAG ${c.criterionId} — ${name}`,
+    rule: t(L.strings, 'stub.rule', {
+      id: c.criterionId, name, level, en,
+      principle: t(L.strings, `principle.${c.principle}.name`),
+    }),
     build: notes
       ? `${notes.example} ${notes.pitfall}`
-      : 'Check the W3C Understanding document for this criterion for the full normative text, sufficient techniques, and common failures before claiming conformance.',
-    engine: `Engine coverage: ${auto}`,
+      : t(L.strings, 'stub.buildGeneric'),
+    engine: t(L.strings, 'stub.engine', { auto }),
+    sources,
+    related: relatedCriteria(c, L),
     stub: true,
     polished: Boolean(notes),
     updated: REGISTRY_DATE,
@@ -367,12 +727,12 @@ function stubArticle(c) {
   };
 }
 
-function resolveArticle(slug) {
-  const t = TOPICS.find((x) => x.slug === slug);
-  if (t) return { article: t, polished: true };
+function resolveArticle(slug, L) {
+  const t0 = TOPICS.find((x) => x.slug === slug);
+  if (t0) return { article: localizeTopic(t0, L.topics), polished: true };
   const c = WCAG_BY_SLUG.get(slug);
   if (c) {
-    const stub = stubArticle(c);
+    const stub = stubArticle(c, L);
     return { article: stub, polished: stub.polished };
   }
   return null;
@@ -408,6 +768,14 @@ function orgLd() {
     '@id': `${ORIGIN}/#org`,
     name: 'Sovereign Compliance Engine',
     url: PORTAL,
+    logo: `${ORIGIN}/og/logo.png`,
+    description:
+      'Independent EU-based compliance verification engine — perimeter checks, WCAG conformance, GDPR erasure and tamper-evident audit trails on sovereign EU/UK infrastructure.',
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      email: 'support@compliance-audit.eu',
+    },
     sameAs: [
       'https://compliance-audit.eu',
       'https://github.com/Terrygilligan',
@@ -417,20 +785,84 @@ function orgLd() {
 }
 
 // Shared <head> extras: canonical + OG + robots + JSON-LD. ogImage is a path
-// under /og/ served by the ASSETS binding.
-function headMeta({ title, desc, canonical, og = '/og/site.png', robots = 'index, follow', ld = [] }) {
+// under /og/ served by the ASSETS binding. type='article' adds article:* OG
+// tags — pass published/modified dates when using it.
+function headMeta({
+  title,
+  desc,
+  canonical,
+  og = '/og/site.png',
+  robots = 'index, follow',
+  type = 'website',
+  published,
+  modified,
+  section,
+  ld = [],
+  locale = DEFAULT_LOCALE,
+  alternates = [],
+}) {
+  const article =
+    type === 'article'
+      ? `<meta property="article:published_time" content="${published}">
+<meta property="article:modified_time" content="${modified || published}">
+${section ? `<meta property="article:section" content="${esc(section)}">` : ''}`
+      : '';
+  const ogAlt = Object.entries(LOCALES)
+    .filter(([code, cfg]) => code !== locale && cfg.active)
+    .map(([, cfg]) => `<meta property="og:locale:alternate" content="${cfg.ogLocale}">`)
+    .join('\n');
+  const hreflang = alternates
+    .map(([hl, u]) => `<link rel="alternate" hreflang="${hl}" href="${u}">`)
+    .join('\n');
   return `<title>${esc(title)}</title>
 <meta name="description" content="${esc(desc).slice(0, 160)}">
 <link rel="canonical" href="${ORIGIN}${canonical}">
+${hreflang}
 <meta name="robots" content="${robots}">
-<meta property="og:type" content="website">
+<meta property="og:type" content="${type}">
 <meta property="og:site_name" content="Compliance Audit reference">
+<meta property="og:locale" content="${LOCALES[locale]?.ogLocale || 'en_GB'}">
+${ogAlt}
 <meta property="og:url" content="${ORIGIN}${canonical}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc).slice(0, 200)}">
 <meta property="og:image" content="${ORIGIN}${og}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${esc(title)}">
+${article}
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc).slice(0, 200)}">
+<meta name="twitter:image" content="${ORIGIN}${og}">
 ${ld.map(jsonLd).join('\n')}`;
+}
+
+// FNV-1a 32-bit content hash — weak ETag so crawlers/proxies can revalidate
+// with If-None-Match and get a 304 instead of a full body.
+function etag(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `W/"${(h >>> 0).toString(16)}"`;
+}
+
+// HTML response with validators: weak ETag (304 on If-None-Match) +
+// Last-Modified. `extra` merges per-route headers (e.g. x-robots-tag).
+function htmlResponse(request, html, { status = 200, lastModified, extra = {} } = {}) {
+  const tag = etag(html);
+  const headers = {
+    ...SECURITY_HEADERS,
+    etag: tag,
+    ...(lastModified ? { 'last-modified': lastModified } : {}),
+    ...extra,
+  };
+  if (request.headers.get('if-none-match') === tag) {
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(html, { status, headers });
 }
 
 // Zero-JS telemetry: forward the real visitor's cf-connecting-ip + referer in
@@ -457,7 +889,9 @@ const TEXT_HEADERS = { 'content-type': 'text/plain; charset=utf-8', 'cache-contr
 const XML_HEADERS = { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=60' };
 
 function robotsTxt() {
-  return `# compliance-audit.info — public reference surface; everything is indexable
+  return `# compliance-audit.info — public reference surface; everything is indexable.
+# Search and AI crawlers alike are welcome — /llms.txt maps the content for
+# agents and cross-references the engine API surface (api.compliance-audit.eu).
 User-agent: *
 Allow: /
 
@@ -470,16 +904,25 @@ function sitemapXml() {
     { loc: '/', priority: '1.0', changefreq: 'weekly', lastmod: TOPICS_DATE },
     { loc: '/rules', priority: '0.9', changefreq: 'weekly', lastmod: REGISTRY_DATE },
     ...TOPICS.map((t) => ({ loc: `/rules/${t.slug}`, priority: '0.8', changefreq: 'monthly', lastmod: t.updated })),
-    ...[...WCAG_BY_SLUG.keys()]
+    // Indexable stubs only — submitting noindex URLs wastes crawl budget and
+    // floods GSC with "submitted URL marked noindex" warnings. Unpolished
+    // stubs stay crawlable via /rules links and join here when STUB_NOTES land.
+    ...[...POLISHED_WCAG]
       .filter((s) => !TOPICS.some((t) => t.slug === s))
-      .map((s) => ({ loc: `/rules/${s}`, priority: POLISHED_WCAG.has(s) ? '0.7' : '0.5', changefreq: 'monthly', lastmod: REGISTRY_DATE })),
+      .map((s) => ({ loc: `/rules/${s}`, priority: '0.7', changefreq: 'monthly', lastmod: REGISTRY_DATE })),
   ];
+  const alts = (p) =>
+    alternatesFor(p)
+      .map(([hl, u]) => `    <xhtml:link rel="alternate" hreflang="${hl}" href="${u}"/>`)
+      .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${urls
   .map(
     (u) => `  <url>
     <loc>${ORIGIN}${u.loc}</loc>
+${alts(u.loc)}
     <lastmod>${u.lastmod}</lastmod>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>
@@ -528,13 +971,28 @@ async function nodeHealth(url) {
   }
 }
 
-function nodeCard(name, zone, h) {
+// Isolate-scoped health cache — 60s TTL so a homepage hit doesn't pay two
+// Cloud Run round-trips (worst case was 2.5s of timeout stalls). The cache
+// holds whatever the probes actually said — a down node still renders
+// UNREACHABLE, just 60s stale at most.
+let healthCache = null;
+async function nodeHealthCached() {
+  if (healthCache && Date.now() - healthCache.ts < 60_000) return healthCache;
+  const [eu, uk] = await Promise.all([
+    nodeHealth(EU_HEALTH).catch(() => ({ ok: false })),
+    nodeHealth(UK_HEALTH).catch(() => ({ ok: false })),
+  ]);
+  healthCache = { ts: Date.now(), eu, uk };
+  return healthCache;
+}
+
+function nodeCard(name, zone, h, S) {
   const chip = h.ok
-    ? `<span class="chip chip-g">${icon('check', '')} OPERATIONAL</span>`
-    : `<span class="chip chip-r">UNREACHABLE</span>`;
+    ? `<span class="chip chip-g">${icon('check', '')} ${t(S, 'home.status.operational')}</span>`
+    : `<span class="chip chip-r">${t(S, 'home.status.unreachable')}</span>`;
   const meta = h.ok
     ? `${h.db} · ${h.region} · ${h.location}`
-    : `${zone} · no response within 2.5s`;
+    : t(S, 'home.status.noresp', { zone });
   return `<div class="card node">
     <div class="node-top"><span class="node-name">${icon('server', '')} ${name}</span>${chip}</div>
     <div class="node-meta">${meta}</div>
@@ -545,37 +1003,63 @@ function commitment(ic, title, body) {
   return `<div class="card"><div class="card-h"><span class="ic">${icon(ic, '')}</span><h3>${title}</h3></div><p>${body}</p></div>`;
 }
 
-function topicPage(t, generatedAt, { polished = true } = {}) {
-  const canonical = `/rules/${t.slug}`;
+function topicPage(article, generatedAt, { polished = true, L } = {}) {
+  const t0 = article;
+  const S = L.strings;
+  const canonical = `${locPath(L.locale, `/rules/${t0.slug}`)}`;
+  const ogImage = `${ORIGIN}${t0.stub ? '/og/wcag.png' : `/og/${t0.slug}.png`}`;
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'TechArticle',
-    headline: t.title,
-    description: t.rule.slice(0, 200),
-    datePublished: t.updated,
-    dateModified: t.updated,
-    about: t.framework,
+    headline: t0.title,
+    description: t0.rule.slice(0, 200),
+    inLanguage: L.locale,
+    isAccessibleForFree: true,
+    image: ogImage,
+    datePublished: t0.updated,
+    dateModified: t0.updated,
+    about: t0.framework,
     author: { '@id': `${ORIGIN}/#org` },
     publisher: { '@id': `${ORIGIN}/#org` },
-    mainEntityOfPage: `${ORIGIN}${canonical}`,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${ORIGIN}${canonical}` },
   };
   const crumbs = breadcrumbLd([
-    ['Home', '/'],
-    ['Rules', '/rules'],
-    [t.title, canonical],
+    [t(S, 'crumb.home'), locPath(L.locale, '/')],
+    [t(S, 'crumb.rules'), locPath(L.locale, '/rules')],
+    [t0.title, canonical],
   ]);
+  const sources = t0.citations || t0.sources || [];
+  const related = (t0.related || [])
+    .map((r) => (typeof r === 'string' ? resolveArticle(r, L)?.article : r))
+    .filter(Boolean)
+    .map((a) => ({ slug: a.slug, title: a.title }));
+  const checklist = (title, items, marker) => `<div class="card rule"><h3>${title}</h3><ul class="rule-list">${items
+    .map((i) => `<li>${marker} ${esc(i)}</li>`)
+    .join('')}</ul></div>`;
+  const shortTitle = t0.stub && t0.criterion ? `WCAG ${t0.criterion.criterionId}` : t0.title;
+  const reviewed = t0.stub
+    ? t(S, 'article.reviewedStub', { date: t0.updated })
+    : t(S, 'article.reviewed', { date: t0.updated });
+  const home = locPath(L.locale, '/');
+  const rulesHome = locPath(L.locale, '/rules');
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${L.locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${headMeta({
-  title: `${t.title} — Compliance Audit reference`,
-  desc: t.rule,
+  title: `${t0.docTitle || t0.title} — ${t(S, 'meta.suffix')}`,
+  desc: t0.rule,
   canonical,
-  og: t.stub ? '/og/wcag.png' : '/og/site.png',
+  og: t0.stub ? '/og/wcag.png' : `/og/${t0.slug}.png`,
+  type: 'article',
+  published: t0.updated,
+  modified: t0.updated,
+  section: t0.framework,
   robots: polished ? 'index, follow' : 'noindex, follow',
   ld: [articleLd, crumbs, orgLd()],
+  locale: L.locale,
+  alternates: alternatesFor(`/rules/${t0.slug}`),
 })}
 <link rel="icon" href="${FAVICON}">
 <style>${CSS}
@@ -583,220 +1067,236 @@ ${headMeta({
 .back:hover{color:#334155}
 .rule h3{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.375rem}
 .rule p{font-size:.875rem;color:#334155;line-height:1.7}
-.rule-eng{margin-top:.5rem;padding:.875rem 1rem;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:.5rem}
+.rule-list{margin:.25rem 0 0;padding-left:1rem;list-style:none}
+.rule-list li{font-size:.8125rem;color:#334155;line-height:1.65;margin-bottom:.5rem}
+.rule-list li a{color:#059669;text-decoration:none}
+.rule-list li a:hover{text-decoration:underline}
+.rule-eng{margin-top:1rem;padding:.875rem 1rem;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:.5rem}
 .rule-eng p{color:#065f46;font-size:.8125rem}
+.cta-actions{display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center}
 </style>
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${BRAND_SVG}<span>Compliance Audit</span></a>
-  <div class="hd-right"><span class="tag">PUBLIC / REFERENCE</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">Engine ${icon('arrowRight', '')}</a></div>
+  <a class="brand" href="${home}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
+  <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.reference')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
 <section><div class="wrap" style="padding-top:2.5rem">
-  <nav aria-label="Breadcrumb" class="back"><a href="/" style="color:#64748b;text-decoration:none">Home</a> / <a href="/rules" style="color:#64748b;text-decoration:none">Rules</a> / ${esc(t.title)}</nav>
-  <div class="kicker">${t.framework.toUpperCase()} / RULE REFERENCE</div>
-  <h1 style="font-size:1.875rem">${esc(t.title)}</h1>
+  <nav aria-label="Breadcrumb" class="back"><a href="${home}" style="color:#64748b;text-decoration:none">${t(S, 'crumb.home')}</a> / <a href="${rulesHome}" style="color:#64748b;text-decoration:none">${t(S, 'crumb.rules')}</a> / ${esc(t0.title)}</nav>
+  <div class="kicker">${t0.framework.toUpperCase()} / ${t(S, 'article.kicker')}</div>
+  <h1 style="font-size:1.875rem">${esc(t0.title)}</h1>
+  ${t0.context ? `<p class="sub">${esc(t0.context)}</p>` : ''}
   <div class="grid2" style="margin-top:1.5rem">
-    <div class="card rule"><h3>The rule</h3><p>${esc(t.rule)}</p></div>
-    <div class="card rule"><h3>What it means for how you build</h3><p>${esc(t.build)}</p></div>
+    <div class="card rule"><h3>${t(S, 'article.rule')}</h3><p>${esc(t0.rule)}</p></div>
+    <div class="card rule"><h3>${t(S, 'article.build')}</h3><p>${esc(t0.build)}</p></div>
   </div>
-  <div class="card rule-eng" style="margin-top:1rem"><h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#065f46;margin-bottom:.25rem">How the engine checks it</h3><p>${esc(t.engine)}</p></div>
+  ${t0.selfCheck || t0.pitfalls ? `<div class="grid2" style="margin-top:1rem">
+    ${t0.selfCheck ? checklist(t(S, 'article.selfcheck'), t0.selfCheck, icon('check', '')) : ''}
+    ${t0.pitfalls ? checklist(t(S, 'article.pitfalls'), t0.pitfalls, icon('zap', '')) : ''}
+  </div>` : ''}
+  <div class="card rule-eng"><h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#065f46;margin-bottom:.25rem">${t(S, 'article.engine')}</h3><p>${esc(t0.engine)}</p></div>
+  ${sources.length || related.length ? `<div class="grid2" style="margin-top:1rem">
+    ${sources.length ? `<div class="card rule"><h3>${t(S, 'article.sources')}</h3><ul class="rule-list">${sources
+      .map(([l, u]) => `<li><a href="${u}" target="_blank" rel="noopener noreferrer">${esc(l)} ${icon('arrowRight', '')}</a></li>`)
+      .join('')}</ul></div>` : ''}
+    ${related.length ? `<div class="card rule"><h3>${t(S, 'article.related')}</h3><ul class="rule-list">${related
+      .map((r) => `<li><a href="${locPath(L.locale, `/rules/${r.slug}`)}">${esc(r.title)}</a></li>`)
+      .join('')}</ul></div>` : ''}
+  </div>` : ''}
+  <p class="note" style="margin-top:1rem">${reviewed}</p>
 </div></section>
 <div class="wrap"><div class="cta-band">
-  <p>This rule is one of the surfaces the engine verifies from the perimeter — see the live proof run.</p>
-  <a href="${PROOF}" target="_blank" rel="noopener noreferrer">Run the live proof ${icon('arrowRight', '')}</a>
+  <p>${esc(t(S, 'article.cta.text', { topic: shortTitle }))}</p>
+  <div class="cta-actions">
+    <a href="${PROOF}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.proof')} ${icon('arrowRight', '')}</a>
+    <a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.scan')} ${icon('arrowRight', '')}</a>
+  </div>
 </div></div>
 <footer><div class="wrap"><div class="f-row">
-  <span>Compliance Audit — independent EU-based engine. Generated ${generatedAt}.</span>
-  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">Trust page</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a><a href="${APP}" target="_blank" rel="noopener noreferrer">Client sign-in</a></div>
+  <span>${t(S, 'footer.generated', { date: generatedAt })}</span>
+  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a><a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a><a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a><a href="${APP}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.signin')}</a></div>
 </div></div></footer>
 </body>
 </html>`;
 }
 
-function indexSection() {
+function indexSection(L) {
+  const S = L.strings;
   return `<section id="index" style="background:#fff;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0"><div class="wrap">
-  <div class="sec-head"><div><h2>Compliance rules index</h2><p class="sec-sub">The rules the internet actually runs on — what each one demands of how you build</p></div></div>
+  <div class="sec-head"><div><h2>${t(S, 'home.index.h2')}</h2><p class="sec-sub">${t(S, 'home.index.sub')}</p></div></div>
   ${FRAMEWORK_ORDER.map((f) => `
-    <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.25rem 0 .5rem">${f}</h3>
+    <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.25rem 0 .5rem">${t(S, `fw.${f}`)}</h3>
     <div class="grid2">
-      ${TOPICS.filter((t) => t.framework === f).map((t) => `
-        <a href="/rules/${t.slug}" target="_blank" rel="noopener noreferrer" class="card" style="text-decoration:none;display:block">
-          <div class="card-h"><h3 style="color:#0f172a">${t.title}</h3></div>
-          <p style="color:#475569">${t.rule.slice(0, 110)}…</p>
+      ${TOPICS.filter((x) => x.framework === f).map((x) => localizeTopic(x, L.topics)).map((x) => `
+        <a href="${locPath(L.locale, `/rules/${x.slug}`)}" class="card" style="text-decoration:none;display:block">
+          <div class="card-h"><h3 style="color:#0f172a">${esc(x.title)}</h3></div>
+          <p style="color:#475569">${esc(x.rule.slice(0, 110))}…</p>
         </a>`).join('')}
     </div>`).join('')}
 </div></section>`;
 }
 
-function rulesIndexPage(generatedAt) {
+function rulesIndexPage(generatedAt, L) {
+  const S = L.strings;
   const hubFrameworks = FRAMEWORK_ORDER.filter((f) => f !== 'WCAG 2.2');
-  const principleLabel = {
-    perceivable: 'Principle 1 — Perceivable',
-    operable: 'Principle 2 — Operable',
-    understandable: 'Principle 3 — Understandable',
-    robust: 'Principle 4 — Robust',
-  };
   const wcagCard = (slug, name, level, polished) => `
-    <a href="/rules/${slug}" target="_blank" rel="noopener noreferrer" class="card" style="text-decoration:none;display:block">
+    <a href="${locPath(L.locale, `/rules/${slug}`)}" class="card" style="text-decoration:none;display:block">
       <div class="card-h" style="justify-content:space-between">
         <h3 style="color:#0f172a">${esc(name)}</h3>
-        <span class="chip ${polished ? 'chip-g' : 'chip-s'}">Level ${level}${polished ? ' · in-depth' : ''}</span>
+        <span class="chip ${polished ? 'chip-g' : 'chip-s'}">${t(S, 'stub.level', { level })}${polished ? ` · ${t(S, 'rules.indepth')}` : ''}</span>
       </div>
     </a>`;
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${L.locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${headMeta({
-  title: 'Rules index — Compliance Audit reference',
-  desc: 'Every rule the engine verifies, grouped by framework: GDPR, ePrivacy, WCAG 2.2, security headers, EU AI Act, DORA, data residency.',
-  canonical: '/rules',
-  ld: [breadcrumbLd([['Home', '/'], ['Rules', '/rules']]), orgLd()],
+  title: t(S, 'meta.rules.title', { site: t(S, 'meta.suffix') }),
+  desc: t(S, 'meta.rules.desc'),
+  canonical: locPath(L.locale, '/rules'),
+  ld: [breadcrumbLd([[t(S, 'crumb.home'), locPath(L.locale, '/')], [t(S, 'crumb.rules'), locPath(L.locale, '/rules')]]), orgLd()],
+  locale: L.locale,
+  alternates: alternatesFor('/rules'),
 })}
 <link rel="icon" href="${FAVICON}">
 <style>${CSS}</style>
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${BRAND_SVG}<span>Compliance Audit</span></a>
-  <div class="hd-right"><span class="tag">PUBLIC / RULES INDEX</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">Engine ${icon('arrowRight', '')}</a></div>
+  <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
+  <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.index')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
 <section><div class="wrap" style="padding-top:2.5rem">
-  <div class="kicker">RULE REFERENCE / INDEX</div>
-  <h1 style="font-size:1.875rem">Every rule the engine verifies</h1>
-  <p class="sub">Hand-written authority hubs plus the complete WCAG 2.2 A/AA success-criteria catalog.</p>
+  <div class="kicker">${t(S, 'rules.kicker')}</div>
+  <h1 style="font-size:1.875rem">${t(S, 'rules.h1')}</h1>
+  <p class="sub">${t(S, 'rules.sub')}</p>
 
   ${hubFrameworks.map((f) => `
-    <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${f}</h3>
+    <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, `fw.${f}`)}</h3>
     <div class="grid2">
-      ${TOPICS.filter((t) => t.framework === f).map((t) => `
-        <a href="/rules/${t.slug}" target="_blank" rel="noopener noreferrer" class="card" style="text-decoration:none;display:block">
-          <div class="card-h"><h3 style="color:#0f172a">${esc(t.title)}</h3></div>
-          <p style="color:#475569">${esc(t.rule.slice(0, 110))}…</p>
+      ${TOPICS.filter((x) => x.framework === f).map((x) => localizeTopic(x, L.topics)).map((x) => `
+        <a href="${locPath(L.locale, `/rules/${x.slug}`)}" class="card" style="text-decoration:none;display:block">
+          <div class="card-h"><h3 style="color:#0f172a">${esc(x.title)}</h3></div>
+          <p style="color:#475569">${esc(x.rule.slice(0, 110))}…</p>
         </a>`).join('')}
     </div>`).join('')}
 
-  <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">WCAG 2.2 — all ${WCAG_CRITERIA.length} Level A/AA criteria</h3>
+  <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, 'rules.wcagHead', { count: WCAG_CRITERIA.length })}</h3>
   ${WCAG_PRINCIPLES.map((p) => `
-    <h4 style="font-size:.8125rem;font-weight:600;color:#334155;margin:1rem 0 .5rem">${principleLabel[p]}</h4>
+    <h4 style="font-size:.8125rem;font-weight:600;color:#334155;margin:1rem 0 .25rem">${t(S, `principle.${p}.label`)}</h4>
+    <p style="font-size:.75rem;color:#64748b;margin:0 0 .5rem;max-width:44rem">${t(S, `principle.${p}.blurb`)}</p>
     <div class="grid3">
       ${WCAG_CRITERIA.filter((c) => c.principle === p).map((c) => {
         const slug = `wcag-${c.criterionId.replace(/\./g, '-')}`;
-        const polished = TOPICS.some((t) => t.slug === slug) || POLISHED_WCAG.has(slug);
-        return wcagCard(slug, `${c.criterionId} ${c.name}`, c.level, polished);
+        const polished = TOPICS.some((x) => x.slug === slug) || POLISHED_WCAG.has(slug);
+        return wcagCard(slug, `${c.criterionId} ${L.names[c.criterionId] || c.name}`, c.level, polished);
       }).join('')}
     </div>`).join('')}
 </div></section>
 <footer><div class="wrap"><div class="f-row">
-  <span>Compliance Audit — independent EU-based engine. Generated ${generatedAt}.</span>
-  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">Trust page</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a><a href="${APP}" target="_blank" rel="noopener noreferrer">Client sign-in</a></div>
+  <span>${t(S, 'footer.generated', { date: generatedAt })}</span>
+  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a><a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a><a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a><a href="${APP}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.signin')}</a></div>
 </div></div></footer>
 </body>
 </html>`;
 }
 
-function notFoundPage(generatedAt) {
+function notFoundPage(generatedAt, L) {
+  const S = L.strings;
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${L.locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${headMeta({
-  title: 'Rule not found — Compliance Audit reference',
-  desc: 'This rule does not exist in the reference index.',
-  canonical: '/404',
+  title: t(S, 'meta.404.title', { site: t(S, 'meta.suffix') }),
+  desc: t(S, 'meta.404.desc'),
+  canonical: locPath(L.locale, '/404'),
   og: '/og/site.png',
   robots: 'noindex, nofollow',
+  locale: L.locale,
 })}
 <link rel="icon" href="${FAVICON}">
 <style>${CSS}</style>
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${BRAND_SVG}<span>Compliance Audit</span></a>
-  <div class="hd-right"><span class="tag">404</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">Engine ${icon('arrowRight', '')}</a></div>
+  <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
+  <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.404')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
 <section><div class="wrap" style="padding-top:4rem;padding-bottom:4rem">
-  <div class="kicker">404 / NOT IN THE INDEX</div>
-  <h1 style="font-size:1.875rem">That rule isn't in the reference.</h1>
-  <p class="sub">The index covers the regulatory hubs and all ${WCAG_CRITERIA.length} WCAG 2.2 A/AA criteria. If you followed a link, it may predate the index.</p>
+  <div class="kicker">${t(S, '404.kicker')}</div>
+  <h1 style="font-size:1.875rem">${t(S, '404.h1')}</h1>
+  <p class="sub">${t(S, '404.sub', { count: WCAG_CRITERIA.length })}</p>
   <div class="cta-row">
-    <a class="btn btn-em" href="/rules">Browse the rules index ${icon('arrowRight', '')}</a>
-    <a class="btn btn-ghost" href="/">Back to the hub</a>
+    <a class="btn btn-em" href="${locPath(L.locale, '/rules')}">${t(S, '404.ctaIndex')} ${icon('arrowRight', '')}</a>
+    <a class="btn btn-ghost" href="${locPath(L.locale, '/')}">${t(S, '404.ctaHome')}</a>
   </div>
 </div></section>
 <footer><div class="wrap"><div class="f-row">
-  <span>Compliance Audit — independent EU-based engine. Generated ${generatedAt}.</span>
-  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">Trust page</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a></div>
+  <span>${t(S, 'footer.generated', { date: generatedAt })}</span>
+  <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a><a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a><a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a></div>
 </div></div></footer>
 </body>
 </html>`;
 }
 
-function page(eu, uk, generatedAt) {
-  const standards = [
-    ['scale', 'GDPR', 'Erasure cascades, DSAR automation, retention windows — executed as code paths, not policy prose.'],
-    ['zap', 'EU AI Act', 'Model inventory + risk-tier registry per tenant; the audit trail AI governance actually needs.'],
-    ['server', 'DORA', 'Circuit-breaking, incident ledger, and tamper-evident operational records for resilience reviews.'],
-    ['a11y', 'WCAG 2.2 / EN 301 549', 'Automated Tier-1 AST checks plus a real-browser Tier-2 runner producing VPAT/ACR exports.'],
-  ];
-  const commitments = [
-    ['eyeOff', 'Zero third-party tracking', 'No analytics pixels, no ad tech, no data brokers, no session-replay tooling. The only telemetry is a first-party heartbeat to our own API — nothing ever leaves our infrastructure.'],
-    ['cookie', 'Strictly functional sessions', 'Sign-in state lives in session storage only — no tracking cookies, no marketing pixels, nothing that requires a consent banner under ePrivacy.'],
-    ['fingerprint', 'Ephemeral presence signal', 'The visitor heartbeat stores a daily-rotating HMAC-SHA256 hash of the IP — never the address itself — in a 3-minute live window. Documents auto-expire within 24 hours; no per-visitor history exists.'],
-    ['trash', 'No per-visitor history', 'Heartbeats overwrite one document per visitor per day. There is no timeline, no path history, no profile — only an aggregate "who is here right now" window that platform operators can see.'],
-    ['database', 'Sovereign partitions', 'Each regional enclave reads and writes only its own Firestore database — europe-west1 (Belgium) and europe-west2 (London). Regional traffic never crosses partitions.'],
-    ['lock', 'Tamper-evident audit vault', 'Every compliance event is hash-chained into an append-only Firestore vault and independently verifiable via signed export — the same chain our own telemetry refuses to bypass.'],
-  ];
+function page(eu, uk, generatedAt, L) {
+  const S = L.strings;
+  const zip = (icons, rows) => icons.map((ic, i) => [ic, ...rows[i]]);
+  const standards = zip(['scale', 'zap', 'server', 'a11y'], t(S, 'home.standards'));
+  const commitments = zip(['eyeOff', 'cookie', 'fingerprint', 'trash', 'database', 'lock'], t(S, 'home.commitments'));
   const stats = [
-    ['fileJson', 'PII field classes', '5+', 'SSN · email · phone · card · key'],
-    ['lock', 'Badge integrity', 'HMAC-SHA256', 'Signed per assessment'],
-    ['activity', 'Retention rules', '6 tiers', '730d – 3650d statutory'],
-    ['mapPin', 'Data residency', 'EU + UK', 'No replication outside Europe'],
-  ];
+    ['fileJson', '5+', 'home.stats.pii'],
+    ['lock', 'HMAC-SHA256', 'home.stats.badge'],
+    ['activity', '6 tiers', 'home.stats.retention'],
+    ['mapPin', 'EU + UK', 'home.stats.residency'],
+  ].map(([ic, v, k]) => [ic, t(S, k)[0], v, t(S, k)[1]]);
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${L.locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${headMeta({
-  title: 'Compliance Audit — what compliance-as-code actually means',
-  desc: 'Information about the sovereign compliance engine: GDPR, EU AI Act, DORA and WCAG verification as an API — EU/UK data residency, zero tracking, cryptographic proof.',
-  canonical: '/',
+  title: t(S, 'meta.home.title'),
+  desc: t(S, 'meta.home.desc'),
+  canonical: locPath(L.locale, '/'),
   ld: [
     {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: 'Compliance Audit reference',
       url: ORIGIN,
+      inLanguage: L.locale,
       publisher: { '@id': `${ORIGIN}/#org` },
     },
     orgLd(),
   ],
+  locale: L.locale,
+  alternates: alternatesFor('/'),
 })}
 <link rel="icon" href="${FAVICON}">
 <style>${CSS}</style>
 </head>
 <body>
 <header><div class="wrap">
-  <a class="brand" href="/">${BRAND_SVG}<span>Compliance Audit</span></a>
+  <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
   <div class="hd-right">
-    <span class="tag">PUBLIC / INFORMATION</span>
-    <a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">Engine ${icon('arrowRight', '')}</a>
+    <span class="tag">${t(S, 'chrome.tag.info')}</span>
+    <a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a>
   </div>
 </div></header>
 
 <section class="hero"><div class="wrap">
-  <div class="kicker">COMPLIANCE-AUDIT.INFO / PUBLIC REFERENCE</div>
-  <h1>Compliance, verified — not asserted.</h1>
-  <p class="sub">This is the information surface for the Compliance Audit engine: what it checks, how it proves it, and where your data lives. The engine itself is an API — PII redaction, GDPR erasure, accessibility conformance, and HMAC-signed compliance badges — running on sovereign EU/UK infrastructure. The product lives at <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>.</p>
+  <div class="kicker">${t(S, 'home.kicker')}</div>
+  <h1>${t(S, 'home.h1')}</h1>
+  <p class="sub">${esc(t(S, 'home.sub.a'))} <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>${esc(t(S, 'home.sub.b'))}</p>
   <div class="cta-row">
-    <a class="btn btn-em" href="${PORTAL}" target="_blank" rel="noopener noreferrer">Open the engine ${icon('arrowRight', '')}</a>
-    <a class="btn btn-ghost" href="${PROOF}" target="_blank" rel="noopener noreferrer">Run the live proof</a>
-    <a class="btn btn-dark" href="https://github.com/Terrygilligan/compliance-audit-engine" target="_blank" rel="noopener noreferrer">${icon('gitBranch', '')} GitHub Action @v1</a>
+    <a class="btn btn-em" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.openEngine')} ${icon('arrowRight', '')}</a>
+    <a class="btn btn-ghost" href="${PROOF}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.proof')}</a>
+    <a class="btn btn-dark" href="https://github.com/Terrygilligan/compliance-audit-engine" target="_blank" rel="noopener noreferrer">${icon('gitBranch', '')} ${t(S, 'home.cta.github')}</a>
   </div>
 </div></section>
 
@@ -805,50 +1305,52 @@ ${headMeta({
 </div></section>
 
 <section><div class="wrap">
-  <div class="sec-head"><div><h2>Live node status</h2><p class="sec-sub">Both sovereign partitions, fetched at request time — not a cached badge</p></div><span class="chip chip-g">LIVE</span></div>
+  <div class="sec-head"><div><h2>${t(S, 'home.status.h2')}</h2><p class="sec-sub">${t(S, 'home.status.sub')}</p></div><span class="chip chip-g">${t(S, 'home.status.live')}</span></div>
   <div class="grid2">
-    ${nodeCard('EU node', 'europe-west1', eu)}
-    ${nodeCard('UK node', 'europe-west2', uk)}
+    ${nodeCard(t(S, 'home.status.eu'), 'europe-west1', eu, S)}
+    ${nodeCard(t(S, 'home.status.uk'), 'europe-west2', uk, S)}
   </div>
-  <p class="note">Live status only — we publish no fabricated uptime percentages. Each node answers for its own sovereign Firestore partition. Checked ${generatedAt}.</p>
+  <p class="note">${t(S, 'home.status.note', { date: generatedAt })}</p>
 </div></section>
 
 <section style="background:#fff;border-top:1px solid #e2e8f0"><div class="wrap">
-  <div class="sec-head"><div><h2>What it verifies</h2><p class="sec-sub">Four regulatory surfaces, one API — checked at the perimeter, never by scanning your source</p></div></div>
+  <div class="sec-head"><div><h2>${t(S, 'home.verifies.h2')}</h2><p class="sec-sub">${t(S, 'home.verifies.sub')}</p></div></div>
   <div class="grid2">
-    ${standards.map(([ic, t, b]) => commitment(ic, t, b)).join('')}
+    ${standards.map(([ic, tt, b]) => commitment(ic, tt, b)).join('')}
   </div>
 </div></section>
 
-${indexSection()}
+${indexSection(L)}
 
 <section><div class="wrap">
-  <div class="sec-head"><div><h2>How it handles your data</h2><p class="sec-sub">The exact mechanics behind the zero-tracking commitment</p></div></div>
+  <div class="sec-head"><div><h2>${t(S, 'home.data.h2')}</h2><p class="sec-sub">${t(S, 'home.data.sub')}</p></div></div>
   <div class="grid2">
-    ${commitments.map(([ic, t, b]) => commitment(ic, t, b)).join('')}
+    ${commitments.map(([ic, tt, b]) => commitment(ic, tt, b)).join('')}
   </div>
 </div></section>
 
 <div class="wrap"><div class="cta-band">
-  <p>Every claim on this page executes live against production — the status cards above are real health checks, not marketing copy.</p>
-  <a href="${PROOF}" target="_blank" rel="noopener noreferrer">Run the live proof ${icon('arrowRight', '')}</a>
+  <p>${t(S, 'home.cta.band')}</p>
+  <a href="${PROOF}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.proof')} ${icon('arrowRight', '')}</a>
 </div></div>
 
 <footer><div class="wrap">
   <div class="f-row">
-    <span>Compliance Audit — independent EU-based engine. Informational surface; product at <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>.</span>
+    <span>${t(S, 'footer.tagline.a')} <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>.</span>
     <div class="badges">
-      <span class="chip chip-g">${icon('mapPin', '')} EU data · Belgium (europe-west1)</span>
-      <span class="chip chip-g">${icon('mapPin', '')} UK data · London (europe-west2)</span>
-      <span class="chip chip-g">${icon('shield', '')} Zero tracking · essential sessions only</span>
+      <span class="chip chip-g">${icon('mapPin', '')} ${t(S, 'footer.badges.eu')}</span>
+      <span class="chip chip-g">${icon('mapPin', '')} ${t(S, 'footer.badges.uk')}</span>
+      <span class="chip chip-g">${icon('shield', '')} ${t(S, 'footer.badges.tracking')}</span>
     </div>
   </div>
   <div class="f-row">
-    <div class="f-links mono"><span>Firestore · append-only ledger</span><span>EU/UK sovereign partitions</span></div>
+    <div class="f-links mono"><span>${t(S, 'footer.mono.firestore')}</span><span>${t(S, 'footer.mono.partitions')}</span></div>
     <div class="f-links">
-      <a href="${TRUST}" target="_blank" rel="noopener noreferrer">Trust page</a>
+      <a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a>
+      <a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a>
+      <a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a>
       <a href="mailto:support@compliance-audit.eu">${icon('mail', '')} support@compliance-audit.eu</a>
-      <a href="${APP}" target="_blank" rel="noopener noreferrer">Client sign-in</a>
+      <a href="${APP}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.signin')}</a>
     </div>
   </div>
 </div></footer>
@@ -894,42 +1396,62 @@ export default {
       return new Response(llmsTxt(), { status: 200, headers: TEXT_HEADERS });
     }
 
+    // Browsers/crawlers probe /favicon.ico directly — serve the brand mark
+    // instead of burning a redirect to the homepage.
+    if (pathname === '/favicon.ico') {
+      return new Response(BRAND_SVG, {
+        status: 200,
+        headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400, immutable' },
+      });
+    }
+
     // OG binaries via the ASSETS binding; unknown assets 404 plainly.
     if (pathname.startsWith('/og/')) {
       if (env && env.ASSETS) return env.ASSETS.fetch(request);
       return new Response('not found', { status: 404, headers: TEXT_HEADERS });
     }
 
-    const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    // Locale resolution — EN at root; /<code>/ prefixes serve their dict.
+    // Inactive locales 301 to the EN equivalent until translations land.
+    const { locale, path: lp } = resolveLocale(pathname);
+    if (!isActive(locale)) {
+      return Response.redirect(`${url.origin}${lp}${url.search}`, 301);
+    }
+    const L = localeData(locale);
+    pathname = lp;
+
+    // Hour-quantized — a second-resolution timestamp would defeat ETags.
+    const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 14) + ':00 UTC';
+    const lastModified = (d) => new Date(`${d}T00:00:00Z`).toUTCString();
 
     // /rules — index page (indexable HTML → ping).
     if (pathname === '/rules') {
-      ping(request, ctx, '/rules');
-      return new Response(rulesIndexPage(generatedAt), { status: 200, headers: SECURITY_HEADERS });
+      ping(request, ctx, url.pathname);
+      return htmlResponse(request, rulesIndexPage(generatedAt, L), { lastModified: lastModified(REGISTRY_DATE) });
     }
 
     // /rules/<slug> — manual article or WCAG stub; unknown → true 404.
     if (pathname.startsWith('/rules/')) {
       const slug = pathname.slice(7);
-      const resolved = resolveArticle(slug);
+      const resolved = resolveArticle(slug, L);
       if (!resolved) {
-        return new Response(notFoundPage(generatedAt), { status: 404, headers: SECURITY_HEADERS });
+        return new Response(notFoundPage(generatedAt, L), { status: 404, headers: SECURITY_HEADERS });
       }
-      ping(request, ctx, pathname);
+      ping(request, ctx, url.pathname);
       const extra = resolved.polished ? {} : { 'x-robots-tag': 'noindex' };
-      return new Response(topicPage(resolved.article, generatedAt, { polished: resolved.polished }), {
-        status: 200,
-        headers: { ...SECURITY_HEADERS, ...extra },
+      return htmlResponse(request, topicPage(resolved.article, generatedAt, { polished: resolved.polished, L }), {
+        lastModified: lastModified(resolved.article.updated || REGISTRY_DATE),
+        extra,
       });
     }
 
     if (pathname !== '/') {
-      return Response.redirect(`${url.origin}/`, 301);
+      return Response.redirect(`${url.origin}${locPath(locale, '/')}`, 301);
     }
 
-    ping(request, ctx, '/');
-    const [eu, uk] = await Promise.allSettled([nodeHealth(EU_HEALTH), nodeHealth(UK_HEALTH)]);
-    const html = page(eu.value || { ok: false }, uk.value || { ok: false }, generatedAt);
-    return new Response(html, { status: 200, headers: SECURITY_HEADERS });
+    ping(request, ctx, url.pathname);
+    const health = await nodeHealthCached();
+    const html = page(health.eu, health.uk, generatedAt, L);
+    return htmlResponse(request, html, { lastModified: lastModified(TOPICS_DATE) });
   },
 };
