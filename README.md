@@ -37,7 +37,8 @@ i18n wiring is live but EN-only: hreflang/og:locale/inLanguage emit per page,
 hreflang alternates ride in `sitemap.xml` (`xhtml:link`), and `/de/`+`/fr/`
 bounce to EN equivalents until `ui.<code>.js` translation files land (flip
 `active` in `registry.js` at launch — translations are produced offline by a
-provider-agnostic script, terminology-reviewed, never runtime-API'd).
+provider-agnostic script, terminology-reviewed, never runtime-API'd —
+spec: `docs/plan-i18n-translation-pipeline.md`).
 
 Regenerate OG cards after changing hub titles/frameworks:
 
