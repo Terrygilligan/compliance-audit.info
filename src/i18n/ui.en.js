@@ -13,6 +13,7 @@ export const STRINGS = {
   'chrome.tag.index': 'PUBLIC / RULES INDEX',
   'chrome.tag.info': 'PUBLIC / INFORMATION',
   'chrome.tag.404': '404',
+  'chrome.skip': 'Skip to main content',
 
   // --- footer ---
   'footer.generated': 'Compliance Audit — independent EU-based engine. Generated {date}.',

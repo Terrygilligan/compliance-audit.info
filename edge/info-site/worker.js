@@ -149,16 +149,16 @@ header .wrap{height:3.5rem;display:flex;align-items:center;justify-content:space
 .brand{display:flex;align-items:center;gap:.625rem;text-decoration:none;color:#0f172a}
 .brand span{font-weight:600;letter-spacing:-.025em;font-size:.875rem}
 .hd-right{display:flex;align-items:center;gap:1rem}
-.tag{font-size:11px;color:#94a3b8;font-family:ui-monospace,monospace}
+.tag{font-size:11px;color:#475569;font-family:ui-monospace,monospace}
 .btn{display:inline-flex;align-items:center;gap:.5rem;font-size:.875rem;font-weight:500;padding:.625rem 1rem;border-radius:.5rem;text-decoration:none;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .btn svg{width:1rem;height:1rem;flex-shrink:0}
 .btn-sm{padding:.375rem .75rem;font-size:.75rem}
-.btn-em{background:#10b981;color:#fff}.btn-em:hover{background:#34d399}
+.btn-em{background:#047857;color:#fff}.btn-em:hover{background:#065f46}
 .btn-ghost{border:1px solid #cbd5e1;color:#334155}.btn-ghost:hover{border-color:#94a3b8}
 .btn-dark{background:#0f172a;color:#fff;border-radius:9999px}.btn-dark:hover{background:#334155}
 .hero{background:#fff;border-bottom:1px solid #e2e8f0}
 .hero .wrap{padding:2.5rem 1.5rem}
-.kicker{font-size:11px;font-family:ui-monospace,monospace;color:#94a3b8;margin-bottom:.75rem}
+.kicker{font-size:11px;font-family:ui-monospace,monospace;color:#475569;margin-bottom:.75rem}
 h1{font-size:1.875rem;font-weight:700;letter-spacing:-.025em;color:#0f172a;max-width:42rem}
 @media(min-width:768px){h1{font-size:2.25rem}}
 .sub{margin-top:.75rem;color:#475569;line-height:1.625;max-width:42rem;font-size:.9375rem}
@@ -168,7 +168,7 @@ h1{font-size:1.875rem;font-weight:700;letter-spacing:-.025em;color:#0f172a;max-w
 @media(min-width:768px){.strip .wrap{grid-template-columns:repeat(4,1fr)}}
 .stat{background:#fff;border:1px solid #e2e8f0;border-radius:.5rem;padding:1rem}
 .stat-l{display:flex;align-items:center;gap:.5rem;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.5rem}
-.stat-l svg{width:.875rem;height:.875rem;color:#10b981}
+.stat-l svg{width:.875rem;height:.875rem;color:#059669}
 .stat-v{font-size:1.25rem;font-weight:700;color:#0f172a;font-family:ui-monospace,monospace}
 .stat-s{font-size:11px;color:#64748b;margin-top:.125rem}
 section .wrap{padding:3rem 1.5rem}
@@ -195,9 +195,9 @@ h2{font-size:1.125rem;font-weight:600;color:#0f172a}
 .node{display:flex;flex-direction:column;gap:.375rem}
 .node-top{display:flex;align-items:center;justify-content:space-between}
 .node-name{font-size:.875rem;font-weight:600;color:#0f172a;display:flex;align-items:center;gap:.5rem}
-.node-name svg{width:1rem;height:1rem;color:#10b981}
+.node-name svg{width:1rem;height:1rem;color:#059669}
 .node-meta{font-size:11px;color:#64748b;font-family:ui-monospace,monospace}
-.note{margin-top:.75rem;font-size:11px;font-family:ui-monospace,monospace;color:#94a3b8}
+.note{margin-top:.75rem;font-size:11px;font-family:ui-monospace,monospace;color:#475569}
 .cta-band{background:#0f172a;border-radius:.5rem;padding:1.25rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin:0 1.5rem 3rem}
 .cta-band p{font-size:.875rem;color:#cbd5e1;max-width:36rem;line-height:1.625}
 .cta-band a{display:inline-flex;align-items:center;gap:.375rem;font-size:.875rem;font-weight:500;color:#34d399;text-decoration:none}
@@ -210,6 +210,8 @@ footer .wrap{padding:1.25rem 1.5rem;font-size:11px;color:#64748b;display:flex;fl
 .f-links{display:flex;align-items:center;gap:1rem}
 .f-links a{color:#64748b;text-decoration:none}
 .f-links a:hover{color:#334155}
+.skip{position:absolute;left:-9999px;top:0;z-index:50;background:#0f172a;color:#fff;padding:.625rem 1rem;font-size:.875rem;text-decoration:none;border-radius:0 0 .5rem 0}
+.skip:focus{left:0}
 `;
 
 // --- Compliance rules index -------------------------------------------------
@@ -1033,7 +1035,7 @@ function topicPage(article, generatedAt, { polished = true, L } = {}) {
     .map((r) => (typeof r === 'string' ? resolveArticle(r, L)?.article : r))
     .filter(Boolean)
     .map((a) => ({ slug: a.slug, title: a.title }));
-  const checklist = (title, items, marker) => `<div class="card rule"><h3>${title}</h3><ul class="rule-list">${items
+  const checklist = (title, items, marker) => `<div class="card rule"><h2>${title}</h2><ul class="rule-list">${items
     .map((i) => `<li>${marker} ${esc(i)}</li>`)
     .join('')}</ul></div>`;
   const shortTitle = t0.stub && t0.criterion ? `WCAG ${t0.criterion.criterionId}` : t0.title;
@@ -1065,11 +1067,11 @@ ${headMeta({
 <style>${CSS}
 .back{font-size:.75rem;color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:.25rem;margin-bottom:1rem}
 .back:hover{color:#334155}
-.rule h3{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.375rem}
+.rule h2{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.375rem}
 .rule p{font-size:.875rem;color:#334155;line-height:1.7}
 .rule-list{margin:.25rem 0 0;padding-left:1rem;list-style:none}
 .rule-list li{font-size:.8125rem;color:#334155;line-height:1.65;margin-bottom:.5rem}
-.rule-list li a{color:#059669;text-decoration:none}
+.rule-list li a{color:#047857;text-decoration:none}
 .rule-list li a:hover{text-decoration:underline}
 .rule-eng{margin-top:1rem;padding:.875rem 1rem;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:.5rem}
 .rule-eng p{color:#065f46;font-size:.8125rem}
@@ -1077,34 +1079,35 @@ ${headMeta({
 </style>
 </head>
 <body>
+<a class="skip" href="#main">${t(S, 'chrome.skip')}</a>
 <header><div class="wrap">
   <a class="brand" href="${home}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
   <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.reference')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
-<section><div class="wrap" style="padding-top:2.5rem">
+<main id="main" tabindex="-1"><section><div class="wrap" style="padding-top:2.5rem">
   <nav aria-label="Breadcrumb" class="back"><a href="${home}" style="color:#64748b;text-decoration:none">${t(S, 'crumb.home')}</a> / <a href="${rulesHome}" style="color:#64748b;text-decoration:none">${t(S, 'crumb.rules')}</a> / ${esc(t0.title)}</nav>
   <div class="kicker">${t0.framework.toUpperCase()} / ${t(S, 'article.kicker')}</div>
   <h1 style="font-size:1.875rem">${esc(t0.title)}</h1>
   ${t0.context ? `<p class="sub">${esc(t0.context)}</p>` : ''}
   <div class="grid2" style="margin-top:1.5rem">
-    <div class="card rule"><h3>${t(S, 'article.rule')}</h3><p>${esc(t0.rule)}</p></div>
-    <div class="card rule"><h3>${t(S, 'article.build')}</h3><p>${esc(t0.build)}</p></div>
+    <div class="card rule"><h2>${t(S, 'article.rule')}</h2><p>${esc(t0.rule)}</p></div>
+    <div class="card rule"><h2>${t(S, 'article.build')}</h2><p>${esc(t0.build)}</p></div>
   </div>
   ${t0.selfCheck || t0.pitfalls ? `<div class="grid2" style="margin-top:1rem">
     ${t0.selfCheck ? checklist(t(S, 'article.selfcheck'), t0.selfCheck, icon('check', '')) : ''}
     ${t0.pitfalls ? checklist(t(S, 'article.pitfalls'), t0.pitfalls, icon('zap', '')) : ''}
   </div>` : ''}
-  <div class="card rule-eng"><h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#065f46;margin-bottom:.25rem">${t(S, 'article.engine')}</h3><p>${esc(t0.engine)}</p></div>
+  <div class="card rule-eng"><h2 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#065f46;margin-bottom:.25rem">${t(S, 'article.engine')}</h2><p>${esc(t0.engine)}</p></div>
   ${sources.length || related.length ? `<div class="grid2" style="margin-top:1rem">
-    ${sources.length ? `<div class="card rule"><h3>${t(S, 'article.sources')}</h3><ul class="rule-list">${sources
+    ${sources.length ? `<div class="card rule"><h2>${t(S, 'article.sources')}</h2><ul class="rule-list">${sources
       .map(([l, u]) => `<li><a href="${u}" target="_blank" rel="noopener noreferrer">${esc(l)} ${icon('arrowRight', '')}</a></li>`)
       .join('')}</ul></div>` : ''}
-    ${related.length ? `<div class="card rule"><h3>${t(S, 'article.related')}</h3><ul class="rule-list">${related
+    ${related.length ? `<div class="card rule"><h2>${t(S, 'article.related')}</h2><ul class="rule-list">${related
       .map((r) => `<li><a href="${locPath(L.locale, `/rules/${r.slug}`)}">${esc(r.title)}</a></li>`)
       .join('')}</ul></div>` : ''}
   </div>` : ''}
   <p class="note" style="margin-top:1rem">${reviewed}</p>
-</div></section>
+</div></section></main>
 <div class="wrap"><div class="cta-band">
   <p>${esc(t(S, 'article.cta.text', { topic: shortTitle }))}</p>
   <div class="cta-actions">
@@ -1163,17 +1166,18 @@ ${headMeta({
 <style>${CSS}</style>
 </head>
 <body>
+<a class="skip" href="#main">${t(S, 'chrome.skip')}</a>
 <header><div class="wrap">
   <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
   <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.index')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
-<section><div class="wrap" style="padding-top:2.5rem">
+<main id="main" tabindex="-1"><section><div class="wrap" style="padding-top:2.5rem">
   <div class="kicker">${t(S, 'rules.kicker')}</div>
   <h1 style="font-size:1.875rem">${t(S, 'rules.h1')}</h1>
   <p class="sub">${t(S, 'rules.sub')}</p>
 
   ${hubFrameworks.map((f) => `
-    <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, `fw.${f}`)}</h3>
+    <h2 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, `fw.${f}`)}</h2>
     <div class="grid2">
       ${TOPICS.filter((x) => x.framework === f).map((x) => localizeTopic(x, L.topics)).map((x) => `
         <a href="${locPath(L.locale, `/rules/${x.slug}`)}" class="card" style="text-decoration:none;display:block">
@@ -1182,9 +1186,9 @@ ${headMeta({
         </a>`).join('')}
     </div>`).join('')}
 
-  <h3 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, 'rules.wcagHead', { count: WCAG_CRITERIA.length })}</h3>
+  <h2 style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:1.75rem 0 .5rem">${t(S, 'rules.wcagHead', { count: WCAG_CRITERIA.length })}</h2>
   ${WCAG_PRINCIPLES.map((p) => `
-    <h4 style="font-size:.8125rem;font-weight:600;color:#334155;margin:1rem 0 .25rem">${t(S, `principle.${p}.label`)}</h4>
+    <h3 style="font-size:.8125rem;font-weight:600;color:#334155;margin:1rem 0 .25rem">${t(S, `principle.${p}.label`)}</h3>
     <p style="font-size:.75rem;color:#64748b;margin:0 0 .5rem;max-width:44rem">${t(S, `principle.${p}.blurb`)}</p>
     <div class="grid3">
       ${WCAG_CRITERIA.filter((c) => c.principle === p).map((c) => {
@@ -1193,7 +1197,7 @@ ${headMeta({
         return wcagCard(slug, `${c.criterionId} ${L.names[c.criterionId] || c.name}`, c.level, polished);
       }).join('')}
     </div>`).join('')}
-</div></section>
+</div></section></main>
 <footer><div class="wrap"><div class="f-row">
   <span>${t(S, 'footer.generated', { date: generatedAt })}</span>
   <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a><a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a><a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a><a href="${APP}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.signin')}</a></div>
@@ -1221,11 +1225,12 @@ ${headMeta({
 <style>${CSS}</style>
 </head>
 <body>
+<a class="skip" href="#main">${t(S, 'chrome.skip')}</a>
 <header><div class="wrap">
   <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
   <div class="hd-right"><span class="tag">${t(S, 'chrome.tag.404')}</span><a class="btn btn-em btn-sm" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'chrome.engine')} ${icon('arrowRight', '')}</a></div>
 </div></header>
-<section><div class="wrap" style="padding-top:4rem;padding-bottom:4rem">
+<main id="main" tabindex="-1"><section><div class="wrap" style="padding-top:4rem;padding-bottom:4rem">
   <div class="kicker">${t(S, '404.kicker')}</div>
   <h1 style="font-size:1.875rem">${t(S, '404.h1')}</h1>
   <p class="sub">${t(S, '404.sub', { count: WCAG_CRITERIA.length })}</p>
@@ -1233,7 +1238,7 @@ ${headMeta({
     <a class="btn btn-em" href="${locPath(L.locale, '/rules')}">${t(S, '404.ctaIndex')} ${icon('arrowRight', '')}</a>
     <a class="btn btn-ghost" href="${locPath(L.locale, '/')}">${t(S, '404.ctaHome')}</a>
   </div>
-</div></section>
+</div></section></main>
 <footer><div class="wrap"><div class="f-row">
   <span>${t(S, 'footer.generated', { date: generatedAt })}</span>
   <div class="f-links"><a href="${TRUST}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.trust')}</a><a href="${SCAN}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.scan')}</a><a href="${VERIFY}" target="_blank" rel="noopener noreferrer">${t(S, 'footer.verify')}</a><a href="mailto:support@compliance-audit.eu">support@compliance-audit.eu</a></div>
@@ -1281,6 +1286,7 @@ ${headMeta({
 <style>${CSS}</style>
 </head>
 <body>
+<a class="skip" href="#main">${t(S, 'chrome.skip')}</a>
 <header><div class="wrap">
   <a class="brand" href="${locPath(L.locale, '/')}">${BRAND_SVG}<span>${t(S, 'chrome.brand')}</span></a>
   <div class="hd-right">
@@ -1289,10 +1295,10 @@ ${headMeta({
   </div>
 </div></header>
 
-<section class="hero"><div class="wrap">
+<main id="main" tabindex="-1"><section class="hero"><div class="wrap">
   <div class="kicker">${t(S, 'home.kicker')}</div>
   <h1>${t(S, 'home.h1')}</h1>
-  <p class="sub">${esc(t(S, 'home.sub.a'))} <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>${esc(t(S, 'home.sub.b'))}</p>
+  <p class="sub">${esc(t(S, 'home.sub.a'))} <a href="${PORTAL}" style="color:#047857" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>${esc(t(S, 'home.sub.b'))}</p>
   <div class="cta-row">
     <a class="btn btn-em" href="${PORTAL}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.openEngine')} ${icon('arrowRight', '')}</a>
     <a class="btn btn-ghost" href="${PROOF}" target="_blank" rel="noopener noreferrer">${t(S, 'cta.proof')}</a>
@@ -1327,7 +1333,7 @@ ${indexSection(L)}
   <div class="grid2">
     ${commitments.map(([ic, tt, b]) => commitment(ic, tt, b)).join('')}
   </div>
-</div></section>
+</div></section></main>
 
 <div class="wrap"><div class="cta-band">
   <p>${t(S, 'home.cta.band')}</p>
@@ -1336,7 +1342,7 @@ ${indexSection(L)}
 
 <footer><div class="wrap">
   <div class="f-row">
-    <span>${t(S, 'footer.tagline.a')} <a href="${PORTAL}" style="color:#059669" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>.</span>
+    <span>${t(S, 'footer.tagline.a')} <a href="${PORTAL}" style="color:#047857" target="_blank" rel="noopener noreferrer">compliance-audit.eu</a>.</span>
     <div class="badges">
       <span class="chip chip-g">${icon('mapPin', '')} ${t(S, 'footer.badges.eu')}</span>
       <span class="chip chip-g">${icon('mapPin', '')} ${t(S, 'footer.badges.uk')}</span>
