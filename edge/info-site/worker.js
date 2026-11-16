@@ -418,7 +418,7 @@ const TOPICS = [
       ['W3C — Understanding SC 4.1.2 Name, Role, Value', 'https://www.w3.org/WAI/WCAG22/Understanding/name-role-value.html'],
       ['WAI-ARIA Authoring Practices (APG)', 'https://www.w3.org/WAI/ARIA/apg/'],
     ],
-    related: ['wcag-1-3-1', 'wcag-2-1-1', 'wcag-3-3-2', 'wcag-2-4-7'],
+    related: ['wcag-1-3-1', 'wcag-2-1-1', 'wcag-3-3-2', 'wcag-2-4-7', 'wcag-3-3-1'],
     engine: 'axe ruleset detection in the audit run — missing accessible names and misused roles surface as findings.',
   },
   {
@@ -596,6 +596,31 @@ const TOPICS = [
     ],
     related: ['wcag-2-1-1', 'wcag-2-4-3', 'wcag-1-4-3', 'wcag-2-4-11'],
     engine: 'Audit tier 2 — the runner traverses keyboard focus in a real browser and inspects computed focus styling on interactive elements.',
+  },
+  {
+    slug: 'wcag-3-3-1', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 3.3.1 — Error Identification',
+    title: 'WCAG 3.3.1 — Error Identification',
+    context: 'Error Identification is the form-usability criterion: when validation fails, the user must be told which item failed and what went wrong — in text. A red border alone fails it, which makes it the criterion every "red glow, no message" form breaks.',
+    rule: 'If an input error is automatically detected, the item in error must be identified to the user and the error described in text. Level A — the message, not the colour, carries the conformance.',
+    build: 'Pair every validation failure with text that names the field and the problem ("Email: enter an address like name@example.com"), and associate it programmatically — aria-invalid="true" on the input plus aria-describedby (or aria-errormessage) pointing at the message node. A concrete DOM check: every element matching [aria-invalid="true"] should have a describedby/errormessage reference resolving to a node that contains text.',
+    selfCheck: [
+      'Does every failed field produce a text message naming the field and the problem?',
+      'Is each message programmatically tied to its input (aria-describedby / aria-errormessage)?',
+      'Does an error summary link directly to each failing control?',
+      'Do messages persist and remain available — not toast-and-vanish?',
+    ],
+    pitfalls: [
+      'Colour alone — a red border or red asterisk identifies nothing to a user who cannot perceive the colour.',
+      'A summary banner that never says which fields failed, or that the keyboard cannot reach.',
+      'aria-invalid="true" with no message node — the attribute declares the failure; the description still has to exist.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 3.3.1 Error Identification', 'https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html'],
+      ['EN 301 549 — ETSI standards index', 'https://www.etsi.org/deliver/etsi_en/301500_301599/301549/'],
+    ],
+    related: ['wcag-3-3-3', 'wcag-3-3-2', 'wcag-1-4-1', 'wcag-4-1-3'],
+    engine: 'Manual-only in the current audit tiers — no automated run can certify that an error description is present and adequate; the engine surfaces it as a documented human check.',
   },
 ];
 
