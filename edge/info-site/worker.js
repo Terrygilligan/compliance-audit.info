@@ -572,6 +572,31 @@ const TOPICS = [
     related: ['wcag-1-4-5', 'wcag-1-4-3', 'wcag-4-1-2', 'wcag-2-4-4'],
     engine: 'Audit tiers 1+2 flag missing alt attributes on rendered images — automated coverage is partial; whether the alternative is actually equivalent remains a documented manual check.',
   },
+  {
+    slug: 'wcag-2-4-7', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 2.4.7 — Focus Visible',
+    title: 'WCAG 2.4.7 — Focus Visible',
+    context: 'Focus Visible is the most common single CSS failure in accessibility: one global outline:none in a reset stylesheet erases the only landmark a keyboard user has. It is Level AA, and unlike many criteria it is trivially demonstrable — press Tab and look.',
+    rule: 'Any keyboard-operable user interface must have a mode where the keyboard focus indicator is visible on every interactive element. Level AA.',
+    build: 'Style :focus-visible deliberately — an outline with enough contrast against both the element and its adjacent background (WCAG 2.2 refines minimums further in SC 2.4.11). Then verify in a real browser: walk the page with Tab and watch that an indicator appears on every link, button, control, and custom widget — including inside dark bands and over imagery, where a default blue ring vanishes.',
+    selfCheck: [
+      'Can you Tab through the entire page and always see which element holds focus?',
+      'Does the indicator survive your own reset stylesheet and component library?',
+      'Is it visible against every background — dark sections, image banners, high-contrast mode?',
+      'Do custom widgets (menus, sliders, toggles) render a focus style, not just native elements?',
+    ],
+    pitfalls: [
+      'outline: none with no replacement — the single most common 2.4.7 failure, usually inherited from a CSS reset.',
+      'A focus ring that blends into the section it sits on — blue-on-navy passes the checkbox but not the user.',
+      'overflow: hidden or a covering overlay clipping the indicator — focus happens, nothing shows.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 2.4.7 Focus Visible', 'https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html'],
+      ['EN 301 549 — ETSI standards index', 'https://www.etsi.org/deliver/etsi_en/301500_301599/301549/'],
+    ],
+    related: ['wcag-2-1-1', 'wcag-2-4-3', 'wcag-1-4-3', 'wcag-2-4-11'],
+    engine: 'Audit tier 2 — the runner traverses keyboard focus in a real browser and inspects computed focus styling on interactive elements.',
+  },
 ];
 
 const FRAMEWORK_ORDER = ['GDPR', 'ePrivacy', 'WCAG 2.2', 'Security headers', 'EU AI Act', 'DORA', 'NIS2', 'Data residency'];
