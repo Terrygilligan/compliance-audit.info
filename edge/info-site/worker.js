@@ -36,7 +36,7 @@ const TELEMETRY_URL = 'https://api.compliance-audit.eu/v1/telemetry/heartbeat';
 
 // Registry snapshot date — bump when wcagRegistry content is re-synced into
 // stubs; used as sitemap lastmod for programmatic pages.
-const REGISTRY_DATE = '2026-11-02';
+const REGISTRY_DATE = '2026-11-16';
 // Authoring date for the 12 hand-written TOPICS articles.
 const TOPICS_DATE = '2026-11-01';
 
@@ -644,6 +644,56 @@ const STUB_NOTES = {
     example:
       'Correct: status updates are announced via role="status" or an aria-live region — "3 results", "Saved" — without moving focus. Incorrect: toast notifications that appear visually but never reach the accessibility tree.',
     pitfall: 'The live region must exist before the message renders — injecting region and message in the same tick announces nothing.',
+  },
+  '1.3.2': {
+    example:
+      'Correct: the DOM reads heading → intro → form → submit, so a screen reader narrates in the visual order. Incorrect: CSS order/grid/flex rearranging the visual layout while the DOM still reads the submit button before the form fields.',
+    pitfall: 'Check the source order, not the rendered page — visual reordering without matching DOM order is the failure.',
+  },
+  '1.3.5': {
+    example:
+      'Correct: <input type="email" autocomplete="email">, <input autocomplete="given-name"> — the input purpose is machine-readable for autofill and cognitive-support tools. Incorrect: name/email/phone fields with no autocomplete token at all.',
+    pitfall: 'The token must describe what you actually collect — autocomplete="name" on a company-name field misidentifies the purpose and fails.',
+  },
+  '1.4.5': {
+    example:
+      'Correct: styled HTML text for the promo banner — same look, selectable, zoomable, translatable. Incorrect: a PNG of a pricing table or baked-in text screenshots used because the font was easier to control.',
+    pitfall: '"The design needed that font" is not essential — logotypes get the exemption, content does not.',
+  },
+  '2.2.1': {
+    example:
+      'Correct: a session-expiry warning offering "extend my session" before logout, or a documented 20+ hour limit. Incorrect: a silent timeout that dumps a half-finished form, or a countdown with no way to extend it.',
+    pitfall: 'The warning must arrive with enough time to act — a 10-second countdown that resets on activity still fails if there is no extension path.',
+  },
+  '2.2.2': {
+    example:
+      'Correct: an auto-rotating carousel with a working pause control a keyboard user can reach. Incorrect: a hero carousel with no stop mechanism, or a scrolling ticker that cannot be frozen.',
+    pitfall: 'CSS animations count too — an infinite marquee that cannot be paused fails just like a JS carousel.',
+  },
+  '2.4.11': {
+    example:
+      'Correct: focused elements stay at least partly visible — scroll-padding-top on the scroller keeps a focused link clear of the sticky header. Incorrect: a cookie banner or sticky footer that completely covers the focused control.',
+    pitfall: 'CSS scroll-padding is the one-line fix — a sticky header that swallows the focused element is the classic 2.4.11 failure (new in WCAG 2.2).',
+  },
+  '2.5.7': {
+    example:
+      'Correct: the kanban card moves by drag OR by a "Move to…" menu on the card — same outcome, no dragging required. Incorrect: drag-and-drop as the only way to reorder, sort, or resize.',
+    pitfall: 'Sliders count as dragging — a range input needs buttons or a numeric field as the alternate path (new in WCAG 2.2).',
+  },
+  '3.2.2': {
+    example:
+      'Correct: a filter <select> that applies on pressing "Apply", or a control that warns it will navigate on selection. Incorrect: choosing a dropdown option that instantly navigates or submits the form with no warning.',
+    pitfall: 'Any onchange that fires navigation or submission needs to warn first — surprise context switches are the failure.',
+  },
+  '3.3.3': {
+    example:
+      'Correct: "Email is missing the @ — did you mean name@example.com?" next to the field. Incorrect: "Invalid input" with no hint of the expected format.',
+    pitfall: 'A generic "check the field" message is not a suggestion — name the expected format or value when you know it.',
+  },
+  '3.3.8': {
+    example:
+      'Correct: a sign-in that works with paste and autofill — autocomplete="current-password" plus allowing paste covers the cognitive-test exemption, or offer a magic link / passkey. Incorrect: paste disabled on the password field, or a puzzle CAPTCHA as the only gate with no alternative path.',
+    pitfall: 'Blocking paste forces a memory test — letting the password manager do its job is the cheapest compliance there is (new in WCAG 2.2).',
   },
 };
 
