@@ -137,6 +137,10 @@ const BRAND_SVG =
 const FAVICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2310b981'/%3E%3Cpath d='M16 4L6 9v7c0 5.5 4.5 10 10 10s10-4.5 10-10V9L16 4zm0 14c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z' fill='white'/%3E%3C/svg%3E";
 
+// Bing Webmaster Tools site verification — Bing fetches this exact path at root.
+const BING_SITE_AUTH =
+  '<?xml version="1.0"?>\n<users>\n<user>95ACD31F9AE4D070D463100765223E92</user>\n</users>\n';
+
 // --- Livery — the portal's design system, hand-ported (no framework, no CDN) --
 const CSS = `
 :root{color-scheme:light}
@@ -1528,6 +1532,15 @@ export default {
       url.hostname = url.hostname.slice(4);
       url.search = '';
       return Response.redirect(url.toString(), 301);
+    }
+
+    // Bing site verification file — Bing fetches this exact case-sensitive
+    // path at root; answer before lowercase normalization can redirect it.
+    if (url.pathname === '/BingSiteAuth.xml') {
+      return new Response(BING_SITE_AUTH, {
+        status: 200,
+        headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=86400' },
+      });
     }
 
     // Path normalization: strip trailing slashes, lowercase path — one
