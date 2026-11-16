@@ -38,7 +38,7 @@ const TELEMETRY_URL = 'https://api.compliance-audit.eu/v1/telemetry/heartbeat';
 // stubs; used as sitemap lastmod for programmatic pages.
 const REGISTRY_DATE = '2026-11-16';
 // Authoring date for the 12 hand-written TOPICS articles.
-const TOPICS_DATE = '2026-11-01';
+const TOPICS_DATE = '2026-11-16';
 
 // Legacy /t/ slugs that merge into their bare wcag-<id> stub (owner-locked
 // slug merge — one page per criterion).
@@ -294,7 +294,7 @@ const TOPICS = [
       ['GDPR consolidated text — Art. 32 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
       ['GDPR.eu article mirror — Art. 32', 'https://gdpr-info.eu/art-32-gdpr/'],
     ],
-    related: ['gdpr-art-33-breach', 'headers-csp', 'gdpr-art-17-erasure', 'dora-resilience'],
+    related: ['gdpr-art-33-breach', 'headers-csp', 'gdpr-art-17-erasure', 'dora-resilience', 'nis2-art-21-measures'],
     engine: 'Hash-chained append-only audit vault with signed exports — integrity you verify cryptographically, not attest.',
   },
   {
@@ -319,7 +319,7 @@ const TOPICS = [
       ['GDPR consolidated text — Art. 33 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679'],
       ['GDPR.eu article mirror — Art. 33', 'https://gdpr-info.eu/art-33-gdpr/'],
     ],
-    related: ['gdpr-art-32-security', 'gdpr-art-17-erasure', 'dora-resilience', 'data-residency'],
+    related: ['gdpr-art-32-security', 'gdpr-art-17-erasure', 'dora-resilience', 'data-residency', 'nis2-art-21-measures'],
     engine: 'Incident ledger with Art. 33 deadlines computed at creation — the record exists when the regulator asks for it.',
   },
   {
@@ -467,7 +467,7 @@ const TOPICS = [
     citations: [
       ['AI Act — Regulation (EU) 2024/1689 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689'],
     ],
-    related: ['gdpr-art-5-minimisation', 'gdpr-art-32-security', 'dora-resilience', 'data-residency'],
+    related: ['gdpr-art-5-minimisation', 'gdpr-art-32-security', 'dora-resilience', 'data-residency', 'nis2-art-21-measures'],
     engine: 'Model registry endpoints — risk-tiered inventory with audit events on registration and tier changes.',
   },
   {
@@ -491,7 +491,7 @@ const TOPICS = [
     citations: [
       ['DORA — Regulation (EU) 2022/2554 (EUR-Lex)', 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022R2554'],
     ],
-    related: ['gdpr-art-33-breach', 'gdpr-art-32-security', 'data-residency', 'eu-ai-act-inventory'],
+    related: ['gdpr-art-33-breach', 'gdpr-art-32-security', 'data-residency', 'eu-ai-act-inventory', 'nis2-art-21-measures'],
     engine: 'Redis-backed circuit breaker states, incident ledger, and dead-letter topics — resilience as records, not promises.',
   },
   {
@@ -519,9 +519,37 @@ const TOPICS = [
     related: ['gdpr-art-5-minimisation', 'gdpr-art-17-erasure', 'dora-resilience', 'gdpr-art-32-security'],
     engine: 'Dual-node architecture: every tenant\u2019s data lives on exactly one partition — europe-west1 (Belgium) or europe-west2 (London) — routed and refused cross-border by the auth layer.',
   },
+  {
+    slug: 'nis2-art-21-measures', framework: 'NIS2', chip: 'chip-g',
+    docTitle: 'NIS2 Article 21 Cybersecurity Risk-Management Measures',
+    title: 'NIS2 Art. 21 — Cybersecurity Risk-Management Measures',
+    context:
+      'Directive (EU) 2022/2555 (NIS2) requires essential and important entities — and, by contractual flow-down, their ICT and SaaS suppliers — to implement proportionate technical, operational, and organisational security measures. Unlike principles-only frameworks, Article 21 mandates an explicit ten-point baseline backed by management-body accountability and strict incident notification timelines under Article 23.',
+    rule:
+      'In-scope entities must adopt an all-hazards risk-management posture covering ten mandatory domains: risk analysis and security policies, incident handling, business continuity, supply-chain security, secure acquisition and development, effectiveness assessment, cyber hygiene and training, cryptography and encryption, human-resources security and access control, and multi-factor authentication (MFA) with secured communications. Significant incidents trigger a 24-hour early warning, a 72-hour incident notification, and a one-month final report under Article 23.',
+    build:
+      'Enforce MFA/TOTP across all administrative and tenant access paths (Art. 21(2)(j)), mandate TLS 1.2+ with HSTS and encrypted data at rest (Art. 21(2)(h)), maintain an immutable inventory of third-party sub-processors and dependencies (Art. 21(2)(d)), and operate a structured incident-response ledger that computes statutory notification windows at intake alongside tamper-evident audit logs.',
+    selfCheck: [
+      'Are all ten Article 21(2) baseline domains documented in a formal information-security policy approved by the management body?',
+      'Is multi-factor authentication (MFA/TOTP) enforced for all privileged accounts and remote administrative access?',
+      'Do vendor contracts and technical dependency inventories track supply-chain security obligations for critical ICT providers?',
+      'Can your incident-handling workflow log detection timestamps, compute notification deadlines at intake, and export tamper-evident audit trails?',
+    ],
+    pitfalls: [
+      'Treating NIS2 as an IT-only checklist while omitting management-body oversight and documented risk-assessment approvals required under Article 20.',
+      'Overlooking supply-chain flow-down: enterprise customers in essential sectors routinely audit smaller SaaS vendors against Article 21(2)(d) even when the vendor falls below direct size thresholds.',
+      'Relying on informal chat threads during an outage instead of a timestamped incident ledger, making it impossible to prove compliance with the 24h/72h reporting windows.',
+    ],
+    citations: [
+      ['Directive (EU) 2022/2555 (NIS2) — EUR-Lex', 'https://eur-lex.europa.eu/eli/dir/2022/2555/oj'],
+      ['European Commission — NIS2 Directive policy page', 'https://digital-strategy.ec.europa.eu/en/policies/nis2-directive'],
+    ],
+    related: ['gdpr-art-33-breach', 'gdpr-art-32-security', 'dora-resilience', 'eu-ai-act-inventory'],
+    engine: 'TOTP step-up MFA on sensitive operations (Art. 21(2)(j)), a SHA-256 hash-chained audit vault for tamper-evident evidence, and an incident ledger that computes statutory notification deadlines at intake.',
+  },
 ];
 
-const FRAMEWORK_ORDER = ['GDPR', 'ePrivacy', 'WCAG 2.2', 'Security headers', 'EU AI Act', 'DORA', 'Data residency'];
+const FRAMEWORK_ORDER = ['GDPR', 'ePrivacy', 'WCAG 2.2', 'Security headers', 'EU AI Act', 'DORA', 'NIS2', 'Data residency'];
 
 TOPICS.forEach((t) => { t.updated = TOPICS_DATE; });
 
