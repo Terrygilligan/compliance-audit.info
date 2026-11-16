@@ -393,7 +393,7 @@ const TOPICS = [
       ['W3C — Understanding SC 1.4.3 Contrast (Minimum)', 'https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html'],
       ['WebAIM Million — annual accessibility analysis', 'https://webaim.org/projects/million/'],
     ],
-    related: ['wcag-1-4-11', 'wcag-1-4-12', 'wcag-1-4-1', 'wcag-2-1-1'],
+    related: ['wcag-1-4-11', 'wcag-1-4-12', 'wcag-1-4-1', 'wcag-2-1-1', 'wcag-1-1-1'],
     engine: 'axe contrast checks inside the Tier-2 audit run, rolled up into the criterion-level conformance report.',
   },
   {
@@ -546,6 +546,31 @@ const TOPICS = [
     ],
     related: ['gdpr-art-33-breach', 'gdpr-art-32-security', 'dora-resilience', 'eu-ai-act-inventory'],
     engine: 'TOTP step-up MFA on sensitive operations (Art. 21(2)(j)), a SHA-256 hash-chained audit vault for tamper-evident evidence, and an incident ledger that computes statutory notification deadlines at intake.',
+  },
+  {
+    slug: 'wcag-1-1-1', framework: 'WCAG 2.2', chip: 'chip-s',
+    docTitle: 'WCAG 1.1.1 — Non-text Content',
+    title: 'WCAG 1.1.1 — Non-text Content',
+    context: 'Non-text Content is the most-cited success criterion on the web — alt text is where conformance reports, accessibility audits, and lawsuits all start. Perceivable begins here: if an image carries meaning and has no text equivalent, a screen-reader user simply never receives it.',
+    rule: 'All non-text content presented to the user must have a text alternative that serves the equivalent purpose — informative images described, functional images (icons, image links) describing their action, and decorative images marked so assistive tech can skip them. Level A.',
+    build: 'Audit the DOM, not the design file: every <img> needs an alt attribute — descriptive for content images, empty (alt="") for decoration. Image links need alt describing the destination, not the picture. <input type="image">, <area>, <svg>, and <canvas> each need their own text-equivalent path. A concrete check: document.querySelectorAll("img:not([alt])") should return zero elements, and any alt naming a file ("chart.png", "IMG_2049.jpg") is a failure in disguise.',
+    selfCheck: [
+      'Does every informative image carry alt text describing its content or function — not its filename?',
+      'Do purely decorative images use empty alt (alt="") so screen readers skip them?',
+      'Do images inside links describe where the link goes rather than what the picture shows?',
+      'Do complex images like charts have a longer adjacent description the alt text points to?',
+    ],
+    pitfalls: [
+      'Empty alt on meaningful content — alt="" marks an image decorative; on a chart or product photo it deletes information entirely.',
+      'Filename or keyword-stuffed alt — "chart.png" or "seo keywords" describes the file or the ranking, never the content.',
+      'Meaningful CSS background images — backgrounds are invisible to DOM checks; content-carrying images belong in <img> elements.',
+    ],
+    citations: [
+      ['W3C — Understanding SC 1.1.1 Non-text Content', 'https://www.w3.org/WAI/WCAG22/Understanding/non-text-content.html'],
+      ['EN 301 549 — ETSI standards index', 'https://www.etsi.org/deliver/etsi_en/301500_301599/301549/'],
+    ],
+    related: ['wcag-1-4-5', 'wcag-1-4-3', 'wcag-4-1-2', 'wcag-2-4-4'],
+    engine: 'Audit tiers 1+2 flag missing alt attributes on rendered images — automated coverage is partial; whether the alternative is actually equivalent remains a documented manual check.',
   },
 ];
 
