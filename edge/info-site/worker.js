@@ -695,6 +695,111 @@ const STUB_NOTES = {
       'Correct: a sign-in that works with paste and autofill — autocomplete="current-password" plus allowing paste covers the cognitive-test exemption, or offer a magic link / passkey. Incorrect: paste disabled on the password field, or a puzzle CAPTCHA as the only gate with no alternative path.',
     pitfall: 'Blocking paste forces a memory test — letting the password manager do its job is the cheapest compliance there is (new in WCAG 2.2).',
   },
+  '1.2.1': {
+    example:
+      'Correct: a transcript under the podcast episode covering everything said; for a silent screen-recording, a text description of what the video shows. Incorrect: audio or video published with no text equivalent anywhere.',
+    pitfall: '"It is just a podcast" is not an exemption — prerecorded audio-only always needs a transcript; video-only needs text or an audio track.',
+  },
+  '1.2.3': {
+    example:
+      'Correct: the product demo ships an audio-described track or a full-text alternative narrating the on-screen actions. Incorrect: captions covering speech only while the visual steps go undescribed.',
+    pitfall: 'Captions cover what is said, not what is shown — pick audio description or a media alternative; either satisfies Level A.',
+  },
+  '1.2.4': {
+    example:
+      'Correct: the live webinar runs real-time captions (CART or reviewed AI) for the whole session, tested before going live. Incorrect: live audio with captions added only in post-production.',
+    pitfall: 'Auto-captions are acceptable for live content — the criterion is availability in real time, unlike prerecorded captions which are judged on accuracy.',
+  },
+  '1.2.5': {
+    example:
+      'Correct: the prerecorded walkthrough ships an audio-described version covering the on-screen detail. Incorrect: pointing at the 1.2.3 text alternative — at Level AA the description must exist in audio form (or via a conforming alternate version).',
+    pitfall: 'The Level A text alternative does not carry you to AA — prerecorded video needs actual audio description at this level.',
+  },
+  '1.3.3': {
+    example:
+      'Correct: "select Save in the bottom-right" — position plus a control name. Incorrect: "click the round button" or "use the field on the right" with no other cue.',
+    pitfall: 'The fix is cheap — name the control alongside the visual reference; screen-reader users never see "the button on the right".',
+  },
+  '1.3.4': {
+    example:
+      'Correct: rotate the phone and the form keeps working — same fields, same actions, no cut-off content. Incorrect: an overlay demanding "rotate your device" to continue, or a layout that breaks in landscape.',
+    pitfall: '"Essential" is a narrow exemption — a piano app or cheque-deposit camera qualifies; reading comfort does not.',
+  },
+  '1.4.2': {
+    example:
+      'Correct: audio starts only after user action, or a visible pause/volume control sits early in the tab order. Incorrect: autoplaying audio with no way to silence it short of muting the OS.',
+    pitfall: 'It collides with screen readers first — anything over 3 seconds of auto-playing audio needs an in-page kill switch independent of system volume.',
+  },
+  '1.4.13': {
+    example:
+      'Correct: a tooltip that stays open while the pointer moves onto it and closes on Escape. Incorrect: a hover card that vanishes the moment the pointer leaves the trigger, or one that cannot be dismissed without moving focus.',
+    pitfall: 'Test the pointer path — if the tooltip itself cannot take hover, moving from trigger to content dismisses it and fails.',
+  },
+  '2.1.4': {
+    example:
+      'Correct: the "m to mute" shortcut works only while the player has focus, or can be remapped/disabled in settings. Incorrect: global single-key shortcuts that fire while a user is typing into a search box.',
+    pitfall: 'Speech-input users trigger letters by voice — a stray "m" mid-dictation must not mute the call.',
+  },
+  '2.3.1': {
+    example:
+      'Correct: animations and video stay under 3 flashes per second — verified with the PEAT tool or frame analysis. Incorrect: a strobing promo clip or flashing banner effect above the threshold.',
+    pitfall: 'This is a seizure-safety hard-stop, not a nuance — when in doubt cut the flash entirely rather than tuning the rate.',
+  },
+  '2.4.5': {
+    example:
+      'Correct: the rules index plus in-context links plus a sitemap — a page reachable more than one way. Incorrect: an orphan page reachable only by typing the URL.',
+    pitfall: 'Process steps are exempt — checkout and wizard flows do not need alternate routes; reference content does.',
+  },
+  '2.5.1': {
+    example:
+      'Correct: the map zooms by pinch AND by +/- buttons; the slider also accepts arrow keys or typed input. Incorrect: pinch-to-zoom or a drawn path gesture as the only way to operate the control.',
+    pitfall: 'Signature capture is the documented exemption — everything else needing two fingers or a drawn path needs a single-pointer equivalent.',
+  },
+  '2.5.2': {
+    example:
+      'Correct: actions fire on release/click — pressing and sliding off the control cancels. Incorrect: an action bound to pointerdown, so a slip while scrolling commits it with no way back.',
+    pitfall: 'Only the up-event is cancelable — anything on pointerdown/mousedown commits before the user can bail out.',
+  },
+  '2.5.4': {
+    example:
+      'Correct: shake-to-undo has an undo button in the UI AND a setting to disable motion input. Incorrect: features reachable only by tilting or shaking the device.',
+    pitfall: 'Both halves are required — a UI alternative alone fails if an accidental shake still triggers the action.',
+  },
+  '3.1.2': {
+    example:
+      'Correct: <span lang="fr">coup de grace</span> inside English prose, or lang="de" on a German quote. Incorrect: a French paragraph left unmarked — the screen reader mangles it with English pronunciation rules.',
+    pitfall: 'Proper names and fully adopted loanwords are exempt — mark genuine language switches, not every foreign-looking word.',
+  },
+  '3.2.1': {
+    example:
+      'Correct: tabbing through the form moves focus and nothing else. Incorrect: an input that auto-submits or opens a dialog the moment it receives focus.',
+    pitfall: 'A dropdown opening on focus is borderline-acceptable — submitting the form or relocating focus on focus is the hard failure.',
+  },
+  '3.2.3': {
+    example:
+      'Correct: the header keeps Home, Rules, Status, Sign-in in the same order on every page. Incorrect: nav items reshuffling between pages, or links appearing and disappearing by route.',
+    pitfall: 'Same order, not same content — new links may be inserted; reshuffling the existing ones is what fails.',
+  },
+  '3.2.4': {
+    example:
+      'Correct: the search is called "Search" everywhere — visible label, icon, and accessible name all agree. Incorrect: "Search" on one page, "Find" on another, "Look up" in the footer.',
+    pitfall: 'Consistency is about the accessible name, not the visual style — an icon swap with the same label is fine.',
+  },
+  '3.2.6': {
+    example:
+      'Correct: "Support" sits as the last footer link on every page that has it. Incorrect: the help link top-right on one page, buried mid-footer on another, absent on a third.',
+    pitfall: 'It applies only where help EXISTS — omitting it on some pages is allowed, but where it appears its position must not wander (new in WCAG 2.2).',
+  },
+  '3.3.4': {
+    example:
+      'Correct: the payment screen recaps the order before charging, or the delete flow confirms and offers undo. Incorrect: single-click purchase or record deletion with no review step and no reversal.',
+    pitfall: 'Any ONE of the three escapes passes — reversible submission, client-side error-checking, or a confirm step; "are you sure?" is the cheap one.',
+  },
+  '3.3.7': {
+    example:
+      'Correct: a "billing same as shipping" checkbox, or previously entered details offered for selection on a second step. Incorrect: forcing the user to retype their email or address inside the same flow.',
+    pitfall: 'Security re-authentication is exempt — re-asking a password is fine; re-asking the same profile fields is not (new in WCAG 2.2).',
+  },
 };
 
 // Indexable WCAG slugs = the 3 manual TOPICS + stubs carrying STUB_NOTES.
